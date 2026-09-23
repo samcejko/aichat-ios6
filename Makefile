@@ -32,7 +32,8 @@ AIChat_CFLAGS := -Isrc -Isrc/Net -Isrc/Model -Isrc/Chat -Isrc/Markdown -Isrc/UI 
                  -Ivendor/iosMath/iosMath/lib -Ivendor/iosMath/iosMath/render -Ivendor/iosMath/iosMath/render/internal \
                  -Os -fvisibility=hidden \
                  -Wall -Wno-unused-variable -Wno-unused-function -Wno-unused-but-set-variable \
-                 -Wno-deprecated-declarations -Wno-unknown-warning-option
+                 -Wno-deprecated-declarations -Wno-unknown-warning-option \
+                 -Wno-nullability-completeness -Wno-nullability-completeness-on-arrays -Wno-error
 
 # Objective-C only: ARC; APIs newer than iOS 6.0 are warnings here and turned into errors for our own
 # sources by the pragma in src/ORCommon.h (vendored code only warns).

@@ -35,6 +35,7 @@ static CGSize ORMeasureMath(NSString *latex)
     l.labelMode = kMTMathUILabelModeDisplay;
     l.latex = latex ?: @"";
     if (l.error || !latex.length) return CGSizeZero;
+    [l layoutSubviews];   // builds the display list for a view that is not in any window
     CGSize s = [l sizeThatFits:CGSizeMake(10000, 10000)];
     if (s.width <= 0 || s.height <= 0) return CGSizeZero;
     return CGSizeMake(ceil(s.width), ceil(s.height));
