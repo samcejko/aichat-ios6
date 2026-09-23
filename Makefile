@@ -17,7 +17,7 @@ AIChat_FILES := $(wildcard src/*.m) $(wildcard src/*/*.m) \
                 vendor/mbedtls_glue.c \
                 $(wildcard vendor/mbedtls/library/*.c)
 
-AIChat_FRAMEWORKS := UIKit Foundation CoreGraphics QuartzCore Security MobileCoreServices ImageIO QuickLook
+AIChat_FRAMEWORKS := UIKit Foundation CoreGraphics QuartzCore Security ImageIO QuickLook
 
 # Flags for every C-family file (also the vendored mbedTLS sources)
 AIChat_CFLAGS := -Isrc -Isrc/Net -Isrc/Model -Isrc/Chat -Isrc/Markdown -Isrc/UI -Isrc/Theme -Isrc/Util \

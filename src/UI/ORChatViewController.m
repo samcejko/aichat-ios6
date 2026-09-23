@@ -13,7 +13,6 @@
 #import "ORTheme.h"
 #import "ORUtils.h"
 #import "ORCommon.h"
-#import <MobileCoreServices/MobileCoreServices.h>
 #import <QuickLook/QuickLook.h>
 
 static NSString * const kCellId = @"msg";
@@ -745,7 +744,7 @@ static NSString * const kCellId = @"msg";
     if (![UIImagePickerController isSourceTypeAvailable:source]) return;
     UIImagePickerController *picker = [[UIImagePickerController alloc] init];
     picker.sourceType = source;
-    picker.mediaTypes = @[ (NSString *)kUTTypeImage ];
+    picker.mediaTypes = @[ @"public.image" ];   // kUTTypeImage without importing MobileCoreServices
     picker.delegate = self;
     if (ORIsPad() && source != UIImagePickerControllerSourceTypeCamera) {
         self.popover = [[UIPopoverController alloc] initWithContentViewController:picker];
