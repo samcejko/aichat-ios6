@@ -21,9 +21,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential fakeroot rsync curl perl zip unzip git libxml2 xz-utils python3-pil fonts-dejavu-core libtinfo5 || \
+            build-essential fakeroot rsync curl perl zip unzip git libxml2 xz-utils python3-pil fonts-dejavu-core libplist-utils libtinfo5 || \
           sudo apt-get install -y --no-install-recommends \
-            build-essential fakeroot rsync curl perl zip unzip git libxml2 xz-utils python3-pil fonts-dejavu-core
+            build-essential fakeroot rsync curl perl zip unzip git libxml2 xz-utils python3-pil fonts-dejavu-core libplist-utils
 
       - name: Restore Theos cache
         id: theos-cache
@@ -94,6 +94,13 @@ jobs:
       - name: Patch SDK (stub re-exported libraries missing from theos/sdks)
         run: |
           set -e
+          # The toolchain's plistutil is linked against libplist-2.0.so.4, which Ubuntu 22.04 does not ship.
+          # Use the distro binary instead (same CLI).
+          TBIN="$THEOS/toolchain/linux/iphone/bin"
+          if [ -x /usr/bin/plistutil ]; then
+            ln -sf /usr/bin/plistutil "$TBIN/plistutil"
+            plistutil --help >/dev/null 2>&1 && echo "plistutil OK" || echo "plistutil still broken"
+          fi
           SDK="$THEOS/sdks/iPhoneOS9.3.sdk"
           LIBSYS="$SDK/usr/lib/libSystem.tbd"
           test -f "$LIBSYS"
