@@ -7,6 +7,8 @@
 #import "ORSettingsViewController.h"
 #import "ORAPIKeyViewController.h"
 #import "ORFileBrowserViewController.h"
+#import "ORPersonaViewController.h"
+#import "ORPhotoPickerViewController.h"
 #import "ORModelCatalog.h"
 #import "ORSettings.h"
 #import "ORStore.h"
@@ -84,6 +86,8 @@ static NSString * const kCellId = @"msg";
 
     self.inputBar = [[ORInputBar alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 44)];
     self.inputBar.delegate = self;
+    self.inputBar.webSearchOn = [ORSettings shared].webSearch;
+    self.inputBar.attachments = [self.pendingAttachments copy];
     [self.view addSubview:self.inputBar];
 
     self.modelButton = [UIButton buttonWithType:UIButtonTypeCustom];
@@ -196,6 +200,12 @@ static NSString * const kCellId = @"msg";
     [ORMessageCell invalidateLayoutCache];
     [self.tableView reloadData];
     [self updateModelFromSettings];
+    self.inputBar.webSearchOn = [ORSettings shared].webSearch;
+}
+
+- (void)cancelActiveRequest
+{
+    [self.engine cancel];
 }
 
 #pragma mark - Conversation
@@ -494,17 +504,25 @@ static NSString * const kCellId = @"msg";
     return (NSInteger)self.conversation.messages.count;
 }
 
+// Transient flags that depend on the position of the message in the conversation.
+- (ORMessage *)messageAtRow:(NSInteger)row
+{
+    ORMessage *m = self.conversation.messages[row];
+    BOOL last = (NSUInteger)row == self.conversation.messages.count - 1;
+    m.canContinue = last && m.role == ORMessageRoleAssistant && [m.finishReason isEqualToString:@"length"] && !self.engine.isBusy;
+    return m;
+}
+
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    ORMessage *m = self.conversation.messages[indexPath.row];
-    return [ORMessageCell heightForMessage:m width:tableView.bounds.size.width];
+    return [ORMessageCell heightForMessage:[self messageAtRow:indexPath.row] width:tableView.bounds.size.width];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
     ORMessageCell *cell = [tableView dequeueReusableCellWithIdentifier:kCellId forIndexPath:indexPath];
     cell.delegate = self;
-    [cell configureWithMessage:self.conversation.messages[indexPath.row] width:tableView.bounds.size.width];
+    [cell configureWithMessage:[self messageAtRow:indexPath.row] width:tableView.bounds.size.width];
     return cell;
 }
 
@@ -605,6 +623,54 @@ static NSString * const kCellId = @"msg";
     if (ip) [self.tableView reloadRowsAtIndexPaths:@[ ip ] withRowAnimation:UITableViewRowAnimationFade];
 }
 
+- (void)messageCell:(ORMessageCell *)cell didToggleReasoningForMessage:(ORMessage *)message
+{
+    message.reasoningExpanded = !message.reasoningExpanded;
+    NSIndexPath *ip = [self indexPathForMessage:message];
+    if (ip) [self.tableView reloadRowsAtIndexPaths:@[ ip ] withRowAnimation:UITableViewRowAnimationFade];
+}
+
+- (BOOL)messageCell:(ORMessageCell *)cell canEditMessage:(ORMessage *)message
+{
+    return message.role == ORMessageRoleUser && !self.engine.isBusy;
+}
+
+- (void)messageCell:(ORMessageCell *)cell editMessage:(ORMessage *)message
+{
+    if (self.engine.isBusy || message.role != ORMessageRoleUser) return;
+    // Put the text and attachments back into the composer and drop the message with everything after it.
+    NSString *text = message.text ?: @"";
+    NSArray *atts = message.attachments ?: @[];
+    [self.engine truncateFromMessage:message];
+    [self.pendingAttachments removeAllObjects];
+    [self.pendingAttachments addObjectsFromArray:atts];
+    self.inputBar.attachments = [self.pendingAttachments copy];
+    [self.inputBar setText:text];
+    [self.tableView reloadData];
+    [self updateEmptyState];
+    [self layoutChrome];
+    [self.inputBar.textView becomeFirstResponder];
+}
+
+- (void)messageCell:(ORMessageCell *)cell continueMessage:(ORMessage *)message
+{
+    if (!self.currentModel) { [self modelTapped]; return; }
+    [self.engine continueMessage:message model:self.currentModel];
+}
+
+- (void)messageCell:(ORMessageCell *)cell saveImagesOfMessage:(ORMessage *)message
+{
+    NSInteger saved = 0;
+    for (ORAttachment *a in message.attachments) {
+        if (![a isImage]) continue;
+        UIImage *img = [UIImage imageWithContentsOfFile:[a path]];
+        if (!img) continue;
+        UIImageWriteToSavedPhotosAlbum(img, nil, NULL, NULL);
+        saved++;
+    }
+    [ORUtils alertWithTitle:L(@"Saved to Photos") message:[NSString stringWithFormat:L(@"%ld image(s) saved to the Camera Roll."), (long)saved]];
+}
+
 - (BOOL)messageCell:(ORMessageCell *)cell canRegenerateMessage:(ORMessage *)message
 {
     if (self.engine.isBusy) return NO;
@@ -657,6 +723,14 @@ static NSString * const kCellId = @"msg";
     [self.engine cancel];
 }
 
+- (void)inputBarDidToggleWebSearch:(ORInputBar *)bar
+{
+    BOOL on = ![ORSettings shared].webSearch;
+    [ORSettings shared].webSearch = on;
+    [[ORSettings shared] save];
+    bar.webSearchOn = on;
+}
+
 - (void)inputBar:(ORInputBar *)bar didRemoveAttachment:(ORAttachment *)attachment
 {
     [attachment deleteFile];
@@ -668,10 +742,13 @@ static NSString * const kCellId = @"msg";
 - (void)inputBarDidTapAttach:(ORInputBar *)bar
 {
     UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
-    [sheet addButtonWithTitle:L(@"Photo Library")];
+    [sheet addButtonWithTitle:L(@"Photos")];
     if ([UIImagePickerController isSourceTypeAvailable:UIImagePickerControllerSourceTypeCamera]) [sheet addButtonWithTitle:L(@"Take Photo")];
     [sheet addButtonWithTitle:L(@"Choose File")];
     if ([UIPasteboard generalPasteboard].image) [sheet addButtonWithTitle:L(@"Paste Image")];
+    NSDictionary *persona = [[ORSettings shared] activePersona];
+    NSString *personaTitle = [NSString stringWithFormat:@"%@: %@", L(@"Persona"), persona[@"name"] ?: L(@"No persona")];
+    [sheet addButtonWithTitle:personaTitle];
     sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
     if (ORIsPad()) [sheet showFromRect:bar.attachButton.frame inView:bar animated:YES];
     else [sheet showInView:self.view];
@@ -681,10 +758,75 @@ static NSString * const kCellId = @"msg";
 {
     if (buttonIndex < 0 || buttonIndex == actionSheet.cancelButtonIndex) return;
     NSString *title = [actionSheet buttonTitleAtIndex:buttonIndex];
-    if ([title isEqualToString:L(@"Photo Library")]) [self pickPhotoFromSource:UIImagePickerControllerSourceTypePhotoLibrary];
+    if ([title isEqualToString:L(@"Photos")]) [self pickPhotos];
     else if ([title isEqualToString:L(@"Take Photo")]) [self pickPhotoFromSource:UIImagePickerControllerSourceTypeCamera];
     else if ([title isEqualToString:L(@"Choose File")]) [self chooseFile];
     else if ([title isEqualToString:L(@"Paste Image")]) [self addImageAttachment:[UIPasteboard generalPasteboard].image name:nil];
+    else if ([title hasPrefix:L(@"Persona")]) [self showPersonas];
+}
+
+- (void)showPersonas
+{
+    ORPersonaListViewController *vc = [[ORPersonaListViewController alloc] init];
+    vc.showsDoneButton = !ORIsPad();
+    __weak ORChatViewController *weakSelf = self;
+    vc.onDone = ^{ [weakSelf dismissAuxiliaryAnimated:YES completion:nil]; };
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
+    if (ORIsPad()) {
+        self.popover = [[UIPopoverController alloc] initWithContentViewController:nav];
+        self.popover.delegate = self;
+        [self.popover presentPopoverFromRect:self.inputBar.attachButton.frame inView:self.inputBar permittedArrowDirections:UIPopoverArrowDirectionAny animated:YES];
+    } else {
+        [self presentViewController:nav animated:YES completion:nil];
+    }
+}
+
+- (void)pickPhotos
+{
+    ORPhotoPickerViewController *picker = [[ORPhotoPickerViewController alloc] init];
+    __weak ORChatViewController *weakSelf = self;
+    picker.completion = ^(NSArray *images) {
+        [weakSelf dismissAuxiliaryAnimated:YES completion:^{
+            if (images.count) [weakSelf addImageAttachments:images];
+        }];
+    };
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:picker];
+    if (ORIsPad()) {
+        self.popover = [[UIPopoverController alloc] initWithContentViewController:nav];
+        self.popover.delegate = self;
+        [self.popover presentPopoverFromRect:self.inputBar.attachButton.frame inView:self.inputBar permittedArrowDirections:UIPopoverArrowDirectionAny animated:YES];
+    } else {
+        [self presentViewController:nav animated:YES completion:nil];
+    }
+}
+
+- (void)addImageAttachments:(NSArray *)images
+{
+    if (!images.count) return;
+    [self.navSpinner startAnimating];
+    UIBarButtonItem *spinnerItem = [[UIBarButtonItem alloc] initWithCustomView:self.navSpinner];
+    NSArray *savedItems = self.navigationItem.rightBarButtonItems;
+    self.navigationItem.rightBarButtonItems = @[ spinnerItem ];
+    NSTimeInterval stamp = [[NSDate date] timeIntervalSince1970];
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSMutableArray *made = [NSMutableArray array];
+        NSInteger i = 1;
+        for (UIImage *img in images) {
+            @autoreleasepool {
+                NSString *name = [NSString stringWithFormat:@"photo-%.0f-%ld.jpg", stamp, (long)i++];
+                ORAttachment *a = [ORAttachment attachmentWithImage:img displayName:name];
+                if (a) [made addObject:a];
+            }
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.navSpinner stopAnimating];
+            self.navigationItem.rightBarButtonItems = savedItems;
+            for (ORAttachment *a in made) [self.pendingAttachments addObject:a];
+            self.inputBar.attachments = [self.pendingAttachments copy];
+            [self layoutChrome];
+            if (made.count < images.count) [ORUtils alertWithTitle:L(@"Could not add image") message:L(@"Some photos could not be processed.")];
+        });
+    });
 }
 
 #pragma mark - Attachments

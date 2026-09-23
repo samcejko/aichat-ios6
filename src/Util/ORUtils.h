@@ -5,7 +5,11 @@
 
 // Encoding
 + (NSString *)base64EncodeData:(NSData *)data;
++ (NSData *)base64DecodeString:(NSString *)string;
 + (NSString *)dataURLWithMime:(NSString *)mime data:(NSData *)data;
+// Splits "data:image/png;base64,...." into mime and decoded bytes; returns nil if not a data URL.
++ (NSData *)dataFromDataURL:(NSString *)dataURL mime:(NSString **)mime;
++ (NSString *)extensionForMime:(NSString *)mime;
 
 // File types
 + (NSString *)mimeTypeForPath:(NSString *)path;

@@ -1,4 +1,5 @@
 #import "ORModelPickerViewController.h"
+#import "ORModelDetailViewController.h"
 #import "ORModelCatalog.h"
 #import "ORSettings.h"
 #import "ORTheme.h"
@@ -222,12 +223,36 @@
         cell.textLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
     }
     ORModelInfo *m = self.rows[indexPath.row];
-    cell.textLabel.text = [m displayName];
+    BOOL selected = [m.modelId isEqualToString:self.selectedModelId];
+    cell.textLabel.text = selected ? [NSString stringWithFormat:@"✓ %@", [m displayName]] : [m displayName];
     cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · %@", m.modelId, [m detailLine]];
-    cell.accessoryType = [m.modelId isEqualToString:self.selectedModelId] ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
+    cell.accessoryType = UITableViewCellAccessoryDetailDisclosureButton;
     [[ORTheme shared] styleCell:cell];
     cell.detailTextLabel.textColor = [[ORTheme shared] secondaryTextColor];
+    if (selected) cell.textLabel.textColor = [[ORTheme shared] accentColor];
     return cell;
+}
+
+- (void)tableView:(UITableView *)tableView accessoryButtonTappedForRowWithIndexPath:(NSIndexPath *)indexPath
+{
+    ORModelInfo *m = self.rows[indexPath.row];
+    ORModelDetailViewController *vc = [[ORModelDetailViewController alloc] init];
+    vc.model = m;
+    __weak ORModelPickerViewController *weakSelf = self;
+    vc.onUse = ^(ORModelInfo *model) {
+        if (weakSelf.finished) return;
+        weakSelf.selectedModelId = model.modelId;
+        weakSelf.finished = YES;
+        if (weakSelf.completion) weakSelf.completion(model);
+    };
+    vc.onUseAsVision = ^(ORModelInfo *model) {
+        [ORSettings shared].visionModelId = model.modelId;
+        [[ORSettings shared] save];
+        [ORUtils alertWithTitle:L(@"Vision helper set") message:[model displayName]];
+        [weakSelf.navigationController popViewControllerAnimated:YES];
+    };
+    [self.searchBar resignFirstResponder];
+    [self.navigationController pushViewController:vc animated:YES];
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath

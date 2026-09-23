@@ -4,6 +4,9 @@
 
 @class ORChatEngine;
 
+extern NSString * const ORChatEngineDidStartNotification;    // object = engine
+extern NSString * const ORChatEngineDidFinishNotification;   // object = engine, userInfo[@"message"] = ORMessage
+
 @protocol ORChatEngineDelegate <NSObject>
 - (void)chatEngine:(ORChatEngine *)engine didAddMessage:(ORMessage *)message;
 - (void)chatEngine:(ORChatEngine *)engine didUpdateMessage:(ORMessage *)message;
@@ -20,10 +23,14 @@
 @property (nonatomic, weak) id<ORChatEngineDelegate> delegate;
 @property (nonatomic, strong) ORConversation *conversation;
 @property (nonatomic, readonly) BOOL isBusy;
+@property (nonatomic, readonly) ORMessage *pendingAssistant;
 
 - (void)sendText:(NSString *)text attachments:(NSArray *)attachments model:(ORModelInfo *)model;
 - (void)regenerateWithModel:(ORModelInfo *)model;
+- (void)continueMessage:(ORMessage *)message model:(ORModelInfo *)model;   // reply cut off by max tokens
 - (void)cancel;
 - (void)deleteMessage:(ORMessage *)message;
+// Removes the message and everything after it (used by "edit and resend").
+- (void)truncateFromMessage:(ORMessage *)message;
 
 @end

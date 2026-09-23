@@ -25,6 +25,7 @@
 - (BOOL)supportsImages;
 - (BOOL)supportsFiles;
 - (BOOL)supportsTextOutput;
+- (BOOL)supportsImageOutput;
 - (BOOL)supportsParameter:(NSString *)name;
 
 - (NSString *)displayName;    // name, or id when name is missing

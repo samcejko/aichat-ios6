@@ -38,6 +38,8 @@
 - (UIImage *)stopButtonImage;
 - (UIImage *)plusButtonImage;
 - (UIImage *)disclosureArrowImage;
+- (UIImage *)globeImageActive:(BOOL)active;
+- (UIImage *)smallButtonImageHighlighted:(BOOL)highlighted;
 
 // Fonts
 - (CGFloat)messageFontSize;

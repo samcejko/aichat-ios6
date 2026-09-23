@@ -22,10 +22,14 @@ typedef NS_ENUM(NSInteger, ORMessageRole) {
 @property (nonatomic) NSInteger completionTokens;
 @property (nonatomic) double cost;
 @property (nonatomic) BOOL hasUsage;
+@property (nonatomic, copy) NSString *finishReason;      // "stop", "length", ...
+@property (nonatomic) BOOL usedWebSearch;
 
 // transient UI state
 @property (nonatomic) BOOL isStreaming;
 @property (nonatomic) BOOL visionNoteExpanded;
+@property (nonatomic) BOOL reasoningExpanded;
+@property (nonatomic) BOOL canContinue;                  // set by the chat screen for the last reply
 @property (nonatomic, copy) NSString *statusText;       // e.g. "Analyzing image..." while streaming
 
 + (instancetype)messageWithRole:(ORMessageRole)role text:(NSString *)text;

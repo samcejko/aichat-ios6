@@ -45,9 +45,10 @@ function Install-IPadPackage {
     if ($IpaPath -and (Test-Path $IpaPath)) {
         Write-Host "Installing IPA $IpaPath ..."
         Copy-ToIPad -LocalPath $IpaPath -RemotePath '/tmp/aichat.ipa' -IPadHost $IPadHost
-        $out = Invoke-IPad -IPadHost $IPadHost -Command 'if command -v ipainstaller >/dev/null 2>&1; then ipainstaller -f /tmp/aichat.ipa && echo IPA_OK; elif command -v appinst >/dev/null 2>&1; then appinst /tmp/aichat.ipa && echo IPA_OK; else echo NO_INSTALLER; fi' | Out-String
+        $out = Invoke-IPad -IPadHost $IPadHost -Command 'if command -v ipainstaller >/dev/null 2>&1; then ipainstaller -f /tmp/aichat.ipa; echo "IPA_EXIT=$?"; elif command -v appinst >/dev/null 2>&1; then appinst /tmp/aichat.ipa; echo "IPA_EXIT=$?"; else echo NO_INSTALLER; fi' | Out-String
         Write-Host $out
-        if ($out -match 'IPA_OK') { $installed = $true }
+        # ipainstaller's exit code is not reliable; trust its own success message as well.
+        if ($out -match 'IPA_EXIT=0' -or $out -match '(?i)installed .* successfully') { $installed = $true }
     }
     if (-not $installed -and $DebPath -and (Test-Path $DebPath)) {
         Write-Host "Installing DEB $DebPath (falls back to /Applications) ..."

@@ -1,6 +1,7 @@
 #import "ORUtils.h"
 #import "ORCommon.h"
 #import <ImageIO/ImageIO.h>
+#include <string.h>
 
 static const char kBase64Table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -37,9 +38,69 @@ static const char kBase64Table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr
     return [[NSString alloc] initWithBytesNoCopy:out length:j encoding:NSASCIIStringEncoding freeWhenDone:YES];
 }
 
++ (NSData *)base64DecodeString:(NSString *)string
+{
+    if (!string.length) return nil;
+    static int8_t table[256];
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        memset(table, -1, sizeof(table));
+        for (int i = 0; i < 64; i++) table[(uint8_t)kBase64Table[i]] = (int8_t)i;
+        table[(uint8_t)'-'] = 62;   // URL-safe variants
+        table[(uint8_t)'_'] = 63;
+    });
+    NSData *ascii = [string dataUsingEncoding:NSASCIIStringEncoding allowLossyConversion:YES];
+    const uint8_t *in = (const uint8_t *)ascii.bytes;
+    NSUInteger len = ascii.length;
+    NSMutableData *out = [NSMutableData dataWithCapacity:len * 3 / 4 + 3];
+    uint32_t acc = 0;
+    int bits = 0;
+    for (NSUInteger i = 0; i < len; i++) {
+        uint8_t c = in[i];
+        if (c == '=') break;
+        int8_t v = table[c];
+        if (v < 0) continue;   // whitespace / newlines
+        acc = (acc << 6) | (uint32_t)v;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            uint8_t b = (uint8_t)((acc >> bits) & 0xFF);
+            [out appendBytes:&b length:1];
+        }
+    }
+    return out;
+}
+
 + (NSString *)dataURLWithMime:(NSString *)mime data:(NSData *)data
 {
     return [NSString stringWithFormat:@"data:%@;base64,%@", mime ?: @"application/octet-stream", [self base64EncodeData:data]];
+}
+
++ (NSData *)dataFromDataURL:(NSString *)dataURL mime:(NSString **)mime
+{
+    if (![dataURL hasPrefix:@"data:"]) return nil;
+    NSRange comma = [dataURL rangeOfString:@","];
+    if (comma.location == NSNotFound) return nil;
+    NSString *header = [dataURL substringWithRange:NSMakeRange(5, comma.location - 5)];   // "image/png;base64"
+    NSArray *parts = [header componentsSeparatedByString:@";"];
+    if (mime) *mime = parts.count ? parts[0] : @"application/octet-stream";
+    NSString *payload = [dataURL substringFromIndex:comma.location + 1];
+    if ([header rangeOfString:@"base64"].location == NSNotFound) {
+        return [[payload stringByReplacingPercentEscapesUsingEncoding:NSUTF8StringEncoding] dataUsingEncoding:NSUTF8StringEncoding];
+    }
+    return [self base64DecodeString:payload];
+}
+
++ (NSString *)extensionForMime:(NSString *)mime
+{
+    NSString *m = [mime lowercaseString];
+    if ([m isEqualToString:@"image/png"]) return @"png";
+    if ([m isEqualToString:@"image/jpeg"] || [m isEqualToString:@"image/jpg"]) return @"jpg";
+    if ([m isEqualToString:@"image/gif"]) return @"gif";
+    if ([m isEqualToString:@"image/webp"]) return @"webp";
+    if ([m isEqualToString:@"application/pdf"]) return @"pdf";
+    if ([m hasPrefix:@"text/"]) return @"txt";
+    return @"bin";
 }
 
 #pragma mark - File types

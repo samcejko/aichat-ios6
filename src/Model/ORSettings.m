@@ -45,6 +45,10 @@ static NSString * const kFallbackKey     = @"apiKey.fallback";
             @"imageHistoryDepth": @3,
             @"maxTextAttachmentBytes": @300000,
             @"showVisionNotes": @YES,
+            @"webSearch": @NO,
+            @"reasoningEffort": @"default",
+            @"showReasoning": @YES,
+            @"activePersonaId": @"none",
         }];
     }
     return self;
@@ -200,5 +204,93 @@ static NSString * const kFallbackKey     = @"apiKey.fallback";
 
 - (BOOL)showVisionNotes { return [DEF boolForKey:@"showVisionNotes"]; }
 - (void)setShowVisionNotes:(BOOL)v { [DEF setBool:v forKey:@"showVisionNotes"]; [self notify]; }
+
+- (BOOL)webSearch { return [DEF boolForKey:@"webSearch"]; }
+- (void)setWebSearch:(BOOL)v { [DEF setBool:v forKey:@"webSearch"]; [self notify]; }
+
+- (NSString *)reasoningEffort { return [DEF stringForKey:@"reasoningEffort"] ?: @"default"; }
+- (void)setReasoningEffort:(NSString *)v { [DEF setObject:v forKey:@"reasoningEffort"]; }
+
+- (BOOL)showReasoning { return [DEF boolForKey:@"showReasoning"]; }
+- (void)setShowReasoning:(BOOL)v { [DEF setBool:v forKey:@"showReasoning"]; [self notify]; }
+
+#pragma mark - Personas
+
++ (NSArray *)defaultPersonas
+{
+    return @[
+        @{ @"id": @"none", @"name": L(@"No persona"), @"prompt": @"" },
+        @{ @"id": @"concise", @"name": L(@"Concise assistant"),
+           @"prompt": @"You are a helpful assistant. Answer directly and concisely. Use Markdown only when it helps." },
+        @{ @"id": @"translator", @"name": L(@"Translator"),
+           @"prompt": @"You are a professional translator between Czech and English. Detect the language of the user's text and translate it into the other language. Output only the translation, keep formatting." },
+        @{ @"id": @"coder", @"name": L(@"Programmer"),
+           @"prompt": @"You are an expert software engineer. Give precise, working code with short explanations. Prefer complete, runnable examples and mention pitfalls." },
+        @{ @"id": @"teacher", @"name": L(@"Teacher"),
+           @"prompt": @"You are a patient teacher. Explain step by step in simple language, use concrete examples, and end with a short check question." },
+    ];
+}
+
+- (NSArray *)personas
+{
+    NSArray *stored = [DEF arrayForKey:@"personas"];
+    if (![stored isKindOfClass:[NSArray class]] || stored.count == 0) {
+        NSMutableArray *seed = [[[self class] defaultPersonas] mutableCopy];
+        NSString *legacy = [[DEF stringForKey:@"systemPrompt"] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (legacy.length) {
+            [seed addObject:@{ @"id": @"custom", @"name": L(@"My prompt"), @"prompt": legacy }];
+            [DEF setObject:@"custom" forKey:@"activePersonaId"];
+        }
+        [DEF setObject:seed forKey:@"personas"];
+        return seed;
+    }
+    return stored;
+}
+
+- (void)setPersonas:(NSArray *)personas
+{
+    [DEF setObject:personas ?: @[] forKey:@"personas"];
+    [self notify];
+}
+
+- (NSString *)activePersonaId { return [DEF stringForKey:@"activePersonaId"] ?: @"none"; }
+- (void)setActivePersonaId:(NSString *)v { [DEF setObject:v ?: @"none" forKey:@"activePersonaId"]; [self notify]; }
+
+- (NSDictionary *)activePersona
+{
+    NSString *pid = self.activePersonaId;
+    for (NSDictionary *p in self.personas) {
+        if ([p[@"id"] isEqualToString:pid]) return p;
+    }
+    return nil;
+}
+
+- (NSString *)activeSystemPrompt
+{
+    NSString *prompt = [[self activePersona][@"prompt"] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    return prompt.length ? prompt : nil;
+}
+
+- (void)addOrUpdatePersona:(NSDictionary *)persona
+{
+    if (!persona[@"id"]) return;
+    NSMutableArray *list = [self.personas mutableCopy];
+    NSUInteger idx = NSNotFound;
+    for (NSUInteger i = 0; i < list.count; i++) {
+        if ([list[i][@"id"] isEqualToString:persona[@"id"]]) { idx = i; break; }
+    }
+    if (idx == NSNotFound) [list addObject:persona];
+    else list[idx] = persona;
+    [self setPersonas:list];
+}
+
+- (void)removePersonaWithId:(NSString *)personaId
+{
+    if (!personaId || [personaId isEqualToString:@"none"]) return;
+    NSMutableArray *list = [NSMutableArray array];
+    for (NSDictionary *p in self.personas) if (![p[@"id"] isEqualToString:personaId]) [list addObject:p];
+    if ([self.activePersonaId isEqualToString:personaId]) self.activePersonaId = @"none";
+    [self setPersonas:list];
+}
 
 @end

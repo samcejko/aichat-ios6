@@ -102,6 +102,7 @@ static NSArray *ORStringArray(id v)
 - (BOOL)supportsImages { return [self.inputModalities containsObject:@"image"]; }
 - (BOOL)supportsFiles { return [self.inputModalities containsObject:@"file"]; }
 - (BOOL)supportsTextOutput { return self.outputModalities.count == 0 || [self.outputModalities containsObject:@"text"]; }
+- (BOOL)supportsImageOutput { return [self.outputModalities containsObject:@"image"]; }
 - (BOOL)supportsParameter:(NSString *)name { return [self.supportedParameters containsObject:name]; }
 
 - (NSString *)displayName
@@ -124,6 +125,8 @@ static NSArray *ORStringArray(id v)
     [parts addObject:[self priceLine]];
     if ([self supportsImages]) [parts addObject:L(@"image")];
     if ([self supportsFiles]) [parts addObject:@"PDF"];
+    if ([self supportsImageOutput]) [parts addObject:L(@"image out")];
+    if ([self supportsParameter:@"reasoning"]) [parts addObject:L(@"reasoning")];
     return [parts componentsJoinedByString:@" · "];
 }
 

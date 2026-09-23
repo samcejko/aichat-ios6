@@ -30,6 +30,8 @@
     m.completionTokens = [json[@"completionTokens"] integerValue];
     m.cost = [json[@"cost"] doubleValue];
     m.hasUsage = [json[@"hasUsage"] boolValue];
+    m.finishReason = [json[@"finishReason"] isKindOfClass:[NSString class]] ? json[@"finishReason"] : nil;
+    m.usedWebSearch = [json[@"web"] boolValue];
     NSMutableArray *atts = [NSMutableArray array];
     for (id a in (json[@"attachments"] ?: @[])) {
         ORAttachment *att = [ORAttachment attachmentFromJSON:a];
@@ -54,6 +56,8 @@
     d[@"completionTokens"] = @(self.completionTokens);
     d[@"cost"] = @(self.cost);
     d[@"hasUsage"] = @(self.hasUsage);
+    if (self.finishReason) d[@"finishReason"] = self.finishReason;
+    d[@"web"] = @(self.usedWebSearch);
     NSMutableArray *atts = [NSMutableArray array];
     for (ORAttachment *a in self.attachments) [atts addObject:[a toJSON]];
     d[@"attachments"] = atts;

@@ -17,7 +17,10 @@ static const CGFloat kThumbSize = 64.0;
 static const CGFloat kThumbSpacing = 5.0;
 static const CGFloat kMetaHeight = 15.0;
 static const CGFloat kNoteCollapsedHeight = 36.0;
+static const CGFloat kReasoningHeaderHeight = 26.0;
+static const CGFloat kContinueHeight = 30.0;
 static const CGFloat kCodePad = 7.0;
+static const CGFloat kMaxGeneratedImage = 260.0;
 
 #pragma mark - Layout description
 
@@ -29,21 +32,19 @@ static const CGFloat kCodePad = 7.0;
 @end
 
 @interface ORMessageLayout : NSObject
-@property (nonatomic) CGFloat width;
-@property (nonatomic) NSUInteger textLength;
-@property (nonatomic) NSUInteger noteLength;
-@property (nonatomic) BOOL noteExpanded;
-@property (nonatomic) BOOL streaming;
-@property (nonatomic, copy) NSString *statusText;
+@property (nonatomic, copy) NSString *signature;
 @property (nonatomic, strong) NSArray *blockFrames;
 @property (nonatomic, strong) NSArray *attachmentFrames;   // NSValue rects relative to bubble content
+@property (nonatomic) CGRect reasoningFrame;               // in cell coordinates (above the bubble)
 @property (nonatomic) CGRect bubbleFrame;                  // in cell coordinates
 @property (nonatomic) CGRect metaFrame;
 @property (nonatomic) CGRect noteFrame;
 @property (nonatomic) CGRect statusFrame;
+@property (nonatomic) CGRect continueFrame;
 @property (nonatomic) CGFloat totalHeight;
 @property (nonatomic, copy) NSString *metaText;
 @property (nonatomic, strong) NSAttributedString *noteText;
+@property (nonatomic, strong) NSAttributedString *reasoningText;
 @end
 @implementation ORMessageLayout
 @end
@@ -65,7 +66,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     ps.lineBreakMode = NSLineBreakByCharWrapping;
     return [[NSAttributedString alloc] initWithString:raw ?: @"" attributes:@{
         NSFontAttributeName: [[ORTheme shared] codeFont],
-        NSForegroundColorAttributeName: color,
+        NSForegroundColorAttributeName: color ?: [[ORTheme shared] primaryTextColor],
         NSParagraphStyleAttributeName: ps,
     }];
 }
@@ -109,8 +110,11 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
 @property (nonatomic, strong) UILabel *metaLabel;
 @property (nonatomic, strong) UIView *noteView;
 @property (nonatomic, strong) UILabel *noteLabel;
+@property (nonatomic, strong) UIView *reasoningView;
+@property (nonatomic, strong) UILabel *reasoningLabel;
 @property (nonatomic, strong) UILabel *statusLabel;
 @property (nonatomic, strong) UIActivityIndicatorView *spinner;
+@property (nonatomic, strong) UIButton *continueButton;
 @property (nonatomic, strong) UILongPressGestureRecognizer *longPress;
 @end
 
@@ -129,46 +133,76 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     return floor(max);
 }
 
++ (NSString *)signatureForMessage:(ORMessage *)m width:(CGFloat)width
+{
+    return [NSString stringWithFormat:@"%.0f|%lu|%lu|%d|%lu|%d|%d|%@|%lu|%d|%@|%d",
+            width, (unsigned long)m.text.length, (unsigned long)m.visionNote.length, (int)m.visionNoteExpanded,
+            (unsigned long)m.reasoning.length, (int)m.reasoningExpanded, (int)m.isStreaming, m.statusText ?: @"",
+            (unsigned long)m.attachments.count, (int)m.canContinue, m.finishReason ?: @"", (int)m.hasUsage];
+}
+
 + (ORMessageLayout *)layoutForMessage:(ORMessage *)m width:(CGFloat)width
 {
     if (!g_layoutCache) g_layoutCache = [NSMutableDictionary dictionary];
     NSString *key = m.messageId ?: @"";
+    NSString *signature = [self signatureForMessage:m width:width];
     ORMessageLayout *cached = g_layoutCache[key];
-    if (cached && cached.width == width && cached.textLength == m.text.length && cached.noteExpanded == m.visionNoteExpanded &&
-        cached.noteLength == m.visionNote.length &&
-        cached.streaming == m.isStreaming && ((cached.statusText == nil && m.statusText == nil) || [cached.statusText isEqualToString:m.statusText]) &&
-        !(m.isStreaming && cached.textLength == 0)) {
-        return cached;
-    }
+    if (cached && [cached.signature isEqualToString:signature]) return cached;
     if (g_layoutCache.count > 400) [g_layoutCache removeAllObjects];
 
     ORTheme *theme = [ORTheme shared];
     ORSettings *settings = [ORSettings shared];
     BOOL isUser = m.role == ORMessageRoleUser;
     BOOL isError = m.role == ORMessageRoleError;
+    BOOL isAssistant = m.role == ORMessageRoleAssistant;
     ORMessageLayout *layout = [[ORMessageLayout alloc] init];
-    layout.width = width;
-    layout.textLength = m.text.length;
-    layout.noteLength = m.visionNote.length;
-    layout.noteExpanded = m.visionNoteExpanded;
-    layout.streaming = m.isStreaming;
-    layout.statusText = m.statusText;
+    layout.signature = signature;
 
     CGFloat bubbleMax = [self bubbleMaxWidthForWidth:width];
     CGFloat contentMax = bubbleMax - 2 * kBubblePadH;
     UIColor *textColor = isUser ? [theme userBubbleTextColor] : (isError ? [theme errorTextColor] : [theme assistantBubbleTextColor]);
+    CGFloat screenScale = [UIScreen mainScreen].scale;
+
+    CGFloat cy = kCellPadV;
+
+    // Reasoning box (assistant, above the bubble)
+    layout.reasoningText = nil;
+    if (isAssistant && m.reasoning.length && settings.showReasoning) {
+        NSString *header;
+        if (m.isStreaming && m.text.length == 0) header = [NSString stringWithFormat:@"%@ · %@", L(@"Reasoning…"), [ORUtils formatTokenCount:(NSInteger)m.reasoning.length]];
+        else header = [NSString stringWithFormat:@"%@ %@ · %@", m.reasoningExpanded ? @"▾" : @"▸", L(@"Reasoning"), [ORUtils formatTokenCount:(NSInteger)m.reasoning.length]];
+        NSString *full = m.reasoningExpanded ? [NSString stringWithFormat:@"%@\n%@", header, m.reasoning] : header;
+        NSMutableAttributedString *att = [[NSMutableAttributedString alloc] initWithString:full attributes:@{
+            NSFontAttributeName: [theme smallFont], NSForegroundColorAttributeName: [theme secondaryTextColor] }];
+        [att addAttribute:NSFontAttributeName value:[UIFont boldSystemFontOfSize:11] range:NSMakeRange(0, header.length)];
+        layout.reasoningText = att;
+        CGFloat h = m.reasoningExpanded ? ORMeasure(att, bubbleMax - 16).height + 12 : kReasoningHeaderHeight;
+        layout.reasoningFrame = CGRectMake(kSideMargin, cy, bubbleMax, h);
+        cy += h + 4;
+    }
 
     CGFloat y = 0;
     CGFloat maxBlockWidth = 0;
 
-    // Attachments (user messages)
+    // Attachments
     NSMutableArray *attFrames = [NSMutableArray array];
     if (m.attachments.count) {
         CGFloat x = 0;
         CGFloat rowH = 0;
         for (ORAttachment *a in m.attachments) {
-            CGFloat w = [a isImage] ? kThumbSize : MIN(contentMax, 180.0);
-            CGFloat h = [a isImage] ? kThumbSize : 40.0;
+            CGFloat w, h;
+            if ([a isImage] && isAssistant) {
+                CGFloat pw = a.pixelWidth > 0 ? a.pixelWidth : 512;
+                CGFloat ph = a.pixelHeight > 0 ? a.pixelHeight : 512;
+                CGFloat scale = MIN(contentMax / pw, kMaxGeneratedImage / ph);
+                if (scale > 1.0) scale = 1.0;
+                w = MAX(40, floor(pw * scale));
+                h = MAX(40, floor(ph * scale));
+            } else if ([a isImage]) {
+                w = kThumbSize; h = kThumbSize;
+            } else {
+                w = MIN(contentMax, 180.0); h = 40.0;
+            }
             if (x > 0 && x + w > contentMax) {
                 x = 0;
                 y += rowH + kThumbSpacing;
@@ -180,7 +214,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
             maxBlockWidth = MAX(maxBlockWidth, x - kThumbSpacing);
         }
         y += rowH;
-        if (m.text.length) y += kBlockSpacing;
+        if (m.text.length || (m.isStreaming && m.text.length == 0)) y += kBlockSpacing;
     }
     layout.attachmentFrames = attFrames;
 
@@ -202,7 +236,6 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         b.text = [ORMarkdown plainAttributedString:m.text color:textColor font:[theme messageFont]];
         blocks = @[ b ];
     } else if (isUser) {
-        // User text is shown verbatim (no Markdown), preserving what was typed.
         if (m.text.length) {
             ORMDBlock *b = [[ORMDBlock alloc] init];
             b.type = ORMDBlockParagraph;
@@ -253,26 +286,35 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     CGFloat bubbleWidth = MIN(bubbleMax, MAX(maxBlockWidth, 24) + 2 * kBubblePadH);
     CGFloat bubbleHeight = contentHeight + 2 * kBubblePadV;
     CGFloat bubbleX = isUser ? width - kSideMargin - bubbleWidth : kSideMargin;
-    layout.bubbleFrame = CGRectMake(bubbleX, kCellPadV, bubbleWidth, bubbleHeight);
-    CGFloat cy = kCellPadV + bubbleHeight;
+    layout.bubbleFrame = CGRectMake(bubbleX, cy, bubbleWidth, bubbleHeight);
+    cy += bubbleHeight;
 
     // Meta line (assistant usage / model)
     layout.metaText = nil;
-    if (m.role == ORMessageRoleAssistant && !m.isStreaming) {
+    if (isAssistant && !m.isStreaming) {
         NSMutableArray *parts = [NSMutableArray array];
         if (m.modelId) {
             ORModelInfo *info = [[ORModelCatalog shared] modelWithId:m.modelId];
             [parts addObject:info ? [info displayName] : m.modelId];
         }
+        if (m.usedWebSearch) [parts addObject:L(@"web")];
         if (settings.showUsage && m.hasUsage) {
             [parts addObject:[NSString stringWithFormat:@"%@ → %@ tok", [ORUtils formatTokenCount:m.promptTokens], [ORUtils formatTokenCount:m.completionTokens]]];
             if (m.cost > 0) [parts addObject:[NSString stringWithFormat:@"$%.4f", m.cost]];
         }
+        if ([m.finishReason isEqualToString:@"length"]) [parts addObject:L(@"cut off")];
         if (parts.count) {
             layout.metaText = [parts componentsJoinedByString:@" · "];
             layout.metaFrame = CGRectMake(bubbleX + 4, cy + 2, bubbleMax, kMetaHeight);
             cy += kMetaHeight + 2;
         }
+    }
+
+    // Continue button (last reply that was cut off)
+    layout.continueFrame = CGRectZero;
+    if (isAssistant && m.canContinue && !m.isStreaming) {
+        layout.continueFrame = CGRectMake(bubbleX, cy + 4, 120, kContinueHeight);
+        cy += kContinueHeight + 6;
     }
 
     // Vision note (user message)
@@ -289,18 +331,14 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         [att addAttribute:NSFontAttributeName value:[UIFont boldSystemFontOfSize:11] range:NSMakeRange(0, header.length)];
         layout.noteText = att;
         CGFloat noteW = bubbleMax;
-        CGFloat h;
-        if (m.visionNoteExpanded) {
-            h = ORMeasure(att, noteW - 16).height + 12;
-        } else {
-            h = kNoteCollapsedHeight;
-        }
+        CGFloat h = m.visionNoteExpanded ? ORMeasure(att, noteW - 16).height + 12 : kNoteCollapsedHeight;
         layout.noteFrame = CGRectMake(width - kSideMargin - noteW, cy + 3, noteW, h);
         cy += h + 3;
     }
 
     layout.totalHeight = cy + kCellPadV;
     g_layoutCache[key] = layout;
+    (void)screenScale;
     return layout;
 }
 
@@ -322,6 +360,17 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         bg.backgroundColor = [UIColor clearColor];
         self.backgroundView = bg;
 
+        _reasoningView = [[UIView alloc] initWithFrame:CGRectZero];
+        _reasoningView.layer.cornerRadius = 6;
+        _reasoningView.hidden = YES;
+        _reasoningLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _reasoningLabel.numberOfLines = 0;
+        _reasoningLabel.backgroundColor = [UIColor clearColor];
+        [_reasoningView addSubview:_reasoningLabel];
+        [self.contentView addSubview:_reasoningView];
+        UITapGestureRecognizer *reasoningTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(reasoningTapped:)];
+        [_reasoningView addGestureRecognizer:reasoningTap];
+
         _bubbleView = [[UIImageView alloc] initWithFrame:CGRectZero];
         _bubbleView.userInteractionEnabled = YES;
         [self.contentView addSubview:_bubbleView];
@@ -333,6 +382,12 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         _metaLabel.backgroundColor = [UIColor clearColor];
         _metaLabel.hidden = YES;
         [self.contentView addSubview:_metaLabel];
+
+        _continueButton = [UIButton buttonWithType:UIButtonTypeCustom];
+        _continueButton.titleLabel.font = [UIFont boldSystemFontOfSize:13];
+        [_continueButton addTarget:self action:@selector(continueTapped) forControlEvents:UIControlEventTouchUpInside];
+        _continueButton.hidden = YES;
+        [self.contentView addSubview:_continueButton];
 
         _noteView = [[UIView alloc] initWithFrame:CGRectZero];
         _noteView.layer.cornerRadius = 6;
@@ -370,7 +425,21 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     ORTheme *theme = [ORTheme shared];
     BOOL isUser = message.role == ORMessageRoleUser;
     BOOL isError = message.role == ORMessageRoleError;
+    BOOL isAssistant = message.role == ORMessageRoleAssistant;
     UIColor *textColor = isUser ? [theme userBubbleTextColor] : (isError ? [theme errorTextColor] : [theme assistantBubbleTextColor]);
+
+    // Reasoning
+    if (layout.reasoningText) {
+        self.reasoningView.hidden = NO;
+        self.reasoningView.frame = layout.reasoningFrame;
+        self.reasoningView.backgroundColor = [theme noteBackgroundColor];
+        self.reasoningLabel.frame = CGRectInset(self.reasoningView.bounds, 8, 6);
+        self.reasoningLabel.attributedText = layout.reasoningText;
+        self.reasoningLabel.lineBreakMode = message.reasoningExpanded ? NSLineBreakByWordWrapping : NSLineBreakByTruncatingTail;
+        self.reasoningLabel.numberOfLines = message.reasoningExpanded ? 0 : 1;
+    } else {
+        self.reasoningView.hidden = YES;
+    }
 
     self.bubbleView.image = isUser ? [theme userBubbleImage] : (isError ? [theme errorBubbleImage] : [theme assistantBubbleImage]);
     self.bubbleView.frame = layout.bubbleFrame;
@@ -387,11 +456,12 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         UIView *v;
         if ([a isImage]) {
             UIImageView *iv = [[UIImageView alloc] initWithFrame:f];
-            iv.contentMode = UIViewContentModeScaleAspectFill;
+            iv.contentMode = isAssistant ? UIViewContentModeScaleAspectFit : UIViewContentModeScaleAspectFill;
             iv.clipsToBounds = YES;
             iv.layer.cornerRadius = 6;
             iv.backgroundColor = [UIColor colorWithWhite:0.5 alpha:0.3];
-            iv.image = [a thumbnailWithMaxPixels:kThumbSize * 2];
+            CGFloat px = MAX(f.size.width, f.size.height) * [UIScreen mainScreen].scale;
+            iv.image = [a thumbnailWithMaxPixels:isAssistant ? px : kThumbSize * 2];
             v = iv;
         } else {
             UIView *box = [[UIView alloc] initWithFrame:f];
@@ -500,6 +570,18 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         self.metaLabel.hidden = YES;
     }
 
+    // Continue
+    if (!CGRectIsEmpty(layout.continueFrame)) {
+        self.continueButton.hidden = NO;
+        self.continueButton.frame = layout.continueFrame;
+        [self.continueButton setTitle:L(@"Continue") forState:UIControlStateNormal];
+        [self.continueButton setTitleColor:[theme primaryTextColor] forState:UIControlStateNormal];
+        [self.continueButton setBackgroundImage:[theme smallButtonImageHighlighted:NO] forState:UIControlStateNormal];
+        [self.continueButton setBackgroundImage:[theme smallButtonImageHighlighted:YES] forState:UIControlStateHighlighted];
+    } else {
+        self.continueButton.hidden = YES;
+    }
+
     // Vision note
     if (layout.noteText) {
         self.noteView.hidden = NO;
@@ -527,6 +609,16 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     [self.delegate messageCell:self didToggleVisionNoteForMessage:self.message];
 }
 
+- (void)reasoningTapped:(UITapGestureRecognizer *)g
+{
+    [self.delegate messageCell:self didToggleReasoningForMessage:self.message];
+}
+
+- (void)continueTapped
+{
+    [self.delegate messageCell:self continueMessage:self.message];
+}
+
 - (void)attachmentTapped:(UITapGestureRecognizer *)g
 {
     NSInteger idx = g.view.tag;
@@ -546,10 +638,19 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     return YES;
 }
 
+- (BOOL)hasImageAttachments
+{
+    for (ORAttachment *a in self.message.attachments) if ([a isImage]) return YES;
+    return NO;
+}
+
 - (BOOL)canPerformAction:(SEL)action withSender:(id)sender
 {
     if (action == @selector(copy:)) return self.message.text.length > 0;
     if (action == @selector(regenerateMessage:)) return [self.delegate messageCell:self canRegenerateMessage:self.message];
+    if (action == @selector(editMessageAction:)) return [self.delegate messageCell:self canEditMessage:self.message];
+    if (action == @selector(continueMessageAction:)) return self.message.canContinue && !self.message.isStreaming;
+    if (action == @selector(saveImagesAction:)) return [self hasImageAttachments] && !self.message.isStreaming;
     if (action == @selector(deleteMessageAction:)) return !self.message.isStreaming;
     return NO;
 }
@@ -564,6 +665,21 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     [self.delegate messageCell:self regenerateMessage:self.message];
 }
 
+- (void)editMessageAction:(id)sender
+{
+    [self.delegate messageCell:self editMessage:self.message];
+}
+
+- (void)continueMessageAction:(id)sender
+{
+    [self.delegate messageCell:self continueMessage:self.message];
+}
+
+- (void)saveImagesAction:(id)sender
+{
+    [self.delegate messageCell:self saveImagesOfMessage:self.message];
+}
+
 - (void)deleteMessageAction:(id)sender
 {
     [self.delegate messageCell:self deleteMessage:self.message];
@@ -573,9 +689,13 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
 {
     [self becomeFirstResponder];
     UIMenuController *menu = [UIMenuController sharedMenuController];
-    UIMenuItem *regen = [[UIMenuItem alloc] initWithTitle:L(@"Regenerate") action:@selector(regenerateMessage:)];
-    UIMenuItem *del = [[UIMenuItem alloc] initWithTitle:L(@"Delete") action:@selector(deleteMessageAction:)];
-    menu.menuItems = @[ regen, del ];
+    menu.menuItems = @[
+        [[UIMenuItem alloc] initWithTitle:L(@"Edit") action:@selector(editMessageAction:)],
+        [[UIMenuItem alloc] initWithTitle:L(@"Regenerate") action:@selector(regenerateMessage:)],
+        [[UIMenuItem alloc] initWithTitle:L(@"Continue") action:@selector(continueMessageAction:)],
+        [[UIMenuItem alloc] initWithTitle:L(@"Save Image") action:@selector(saveImagesAction:)],
+        [[UIMenuItem alloc] initWithTitle:L(@"Delete") action:@selector(deleteMessageAction:)],
+    ];
     [menu setTargetRect:self.bubbleView.frame inView:self.contentView];
     [menu setMenuVisible:YES animated:YES];
 }

@@ -14,6 +14,7 @@ static const NSInteger kMaxLines = 5;
 @property (nonatomic, strong) UITextView *textView;
 @property (nonatomic, strong) UILabel *placeholder;
 @property (nonatomic, strong) UIButton *attachButton;
+@property (nonatomic, strong) UIButton *webButton;
 @property (nonatomic, strong) UIButton *sendButton;
 @property (nonatomic, strong) UIScrollView *strip;
 @property (nonatomic, strong) NSMutableArray *stripViews;
@@ -42,6 +43,11 @@ static const NSInteger kMaxLines = 5;
         [_attachButton addTarget:self action:@selector(attachTapped) forControlEvents:UIControlEventTouchUpInside];
         _attachButton.showsTouchWhenHighlighted = YES;
         [self addSubview:_attachButton];
+
+        _webButton = [UIButton buttonWithType:UIButtonTypeCustom];
+        [_webButton addTarget:self action:@selector(webTapped) forControlEvents:UIControlEventTouchUpInside];
+        _webButton.showsTouchWhenHighlighted = YES;
+        [self addSubview:_webButton];
 
         _fieldBackground = [[UIImageView alloc] initWithFrame:CGRectZero];
         _fieldBackground.userInteractionEnabled = YES;
@@ -88,6 +94,7 @@ static const NSInteger kMaxLines = 5;
     self.placeholder.font = [t messageFont];
     self.placeholder.textColor = [t placeholderColor];
     [self.attachButton setImage:[t plusButtonImage] forState:UIControlStateNormal];
+    [self.webButton setImage:[t globeImageActive:self.webSearchOn] forState:UIControlStateNormal];
     self.strip.backgroundColor = t.isDark ? [UIColor colorWithWhite:0.12 alpha:1] : [UIColor colorWithWhite:0.88 alpha:1];
     [self refreshSendButton];
     [self setNeedsLayout];
@@ -117,11 +124,28 @@ static const NSInteger kMaxLines = 5;
     [self refreshSendButton];
 }
 
+- (void)setWebSearchOn:(BOOL)webSearchOn
+{
+    _webSearchOn = webSearchOn;
+    [self.webButton setImage:[[ORTheme shared] globeImageActive:webSearchOn] forState:UIControlStateNormal];
+}
+
+- (void)webTapped
+{
+    [self.delegate inputBarDidToggleWebSearch:self];
+}
+
 #pragma mark - Text
 
 - (NSString *)text
 {
     return self.textView.text ?: @"";
+}
+
+- (void)setText:(NSString *)text
+{
+    self.textView.text = text ?: @"";
+    [self textViewDidChange:self.textView];
 }
 
 - (void)clearText
@@ -263,10 +287,11 @@ static const NSInteger kMaxLines = 5;
 
     CGFloat barH = h - stripH;
     self.attachButton.frame = CGRectMake(6, h - 37, 30, 30);
+    self.webButton.frame = CGRectMake(38, h - 37, 30, 30);
     CGFloat sendW = 62;
     self.sendButton.frame = CGRectMake(w - 8 - sendW, h - 38, sendW, 31);
 
-    CGFloat fieldX = 42;
+    CGFloat fieldX = 72;
     CGFloat fieldW = w - fieldX - sendW - 16;
     CGFloat fieldH = barH - 12;
     self.fieldBackground.frame = CGRectMake(fieldX, stripH + 6, fieldW, fieldH);

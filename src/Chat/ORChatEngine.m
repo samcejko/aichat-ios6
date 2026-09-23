@@ -5,6 +5,10 @@
 #import "ORStore.h"
 #import "ORUtils.h"
 #import "ORCommon.h"
+#import <ImageIO/ImageIO.h>
+
+NSString * const ORChatEngineDidStartNotification = @"ORChatEngineDidStartNotification";
+NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNotification";
 
 @interface ORChatEngine ()
 @property (nonatomic) BOOL isBusy;
@@ -12,6 +16,8 @@
 @property (nonatomic, strong) ORMessage *pendingAssistant;
 @property (nonatomic) BOOL updateScheduled;
 @property (nonatomic) BOOL cancelled;
+@property (nonatomic) BOOL continuing;
+@property (nonatomic, strong) NSMutableArray *pendingImageURLs;   // data URLs of generated images
 - (void)flushUpdate;
 @end
 
@@ -22,6 +28,9 @@
     if (self.isBusy == busy) return;
     self.isBusy = busy;
     [self.delegate chatEngineDidChangeBusyState:self];
+    [[NSNotificationCenter defaultCenter] postNotificationName:busy ? ORChatEngineDidStartNotification : ORChatEngineDidFinishNotification
+                                                        object:self
+                                                      userInfo:busy ? nil : @{ @"message": self.conversation.messages.lastObject ?: [NSNull null] }];
 }
 
 #pragma mark - Public
@@ -48,8 +57,29 @@
         if (((ORMessage *)self.conversation.messages[i]).role == ORMessageRoleUser) { lastUser = i; break; }
     }
     if (lastUser < 0) return;
-    while ((NSInteger)self.conversation.messages.count > lastUser + 1) [self.conversation.messages removeLastObject];
+    while ((NSInteger)self.conversation.messages.count > lastUser + 1) {
+        ORMessage *m = self.conversation.messages.lastObject;
+        for (ORAttachment *a in m.attachments) [a deleteFile];
+        [self.conversation.messages removeLastObject];
+    }
     [self runAssistantTurnWithModel:model];
+}
+
+- (void)continueMessage:(ORMessage *)message model:(ORModelInfo *)model
+{
+    if (self.isBusy || !self.conversation || !model) return;
+    if (!message || message.role != ORMessageRoleAssistant || message != self.conversation.messages.lastObject) return;
+    self.cancelled = NO;
+    [self setBusy:YES];
+    message.isStreaming = YES;
+    message.statusText = nil;
+    message.finishReason = nil;
+    message.canContinue = NO;
+    self.pendingAssistant = message;
+    self.continuing = YES;
+    self.pendingImageURLs = [NSMutableArray array];
+    [self.delegate chatEngine:self didUpdateMessage:message];
+    [self sendMainRequestWithModel:model];
 }
 
 - (void)cancel
@@ -71,6 +101,21 @@
     }
 }
 
+- (void)truncateFromMessage:(ORMessage *)message
+{
+    NSUInteger idx = [self.conversation.messages indexOfObjectIdenticalTo:message];
+    if (idx == NSNotFound) return;
+    while (self.conversation.messages.count > idx) {
+        ORMessage *m = self.conversation.messages.lastObject;
+        if (m != message) {
+            for (ORAttachment *a in m.attachments) [a deleteFile];   // the edited message keeps its files
+        }
+        [self.conversation.messages removeLastObject];
+    }
+    if (self.conversation.isEmpty) [[ORStore shared] deleteConversation:self.conversation.conversationId];
+    else [[ORStore shared] saveConversation:self.conversation];
+}
+
 #pragma mark - Turn
 
 - (void)runAssistantTurnWithModel:(ORModelInfo *)model
@@ -80,6 +125,8 @@
         return;
     }
     self.cancelled = NO;
+    self.continuing = NO;
+    self.pendingImageURLs = [NSMutableArray array];
     [self setBusy:YES];
     self.conversation.modelId = model.modelId;
 
@@ -87,6 +134,7 @@
     assistant.modelId = model.modelId;
     assistant.isStreaming = YES;
     assistant.statusText = L(@"Thinking…");
+    assistant.usedWebSearch = [ORSettings shared].webSearch;
     self.pendingAssistant = assistant;
     [self.conversation.messages addObject:assistant];
     [self.delegate chatEngine:self didAddMessage:assistant];
@@ -176,13 +224,19 @@
     }];
 }
 
-- (NSString *)contentStringFromResponse:(NSDictionary *)json
+#pragma mark - Response helpers
+
+- (NSDictionary *)firstChoiceOf:(NSDictionary *)json
 {
     NSArray *choices = json[@"choices"];
     if (![choices isKindOfClass:[NSArray class]] || !choices.count) return nil;
     id first = choices[0];
-    if (![first isKindOfClass:[NSDictionary class]]) return nil;
-    NSDictionary *msg = first[@"message"];
+    return [first isKindOfClass:[NSDictionary class]] ? first : nil;
+}
+
+- (NSString *)contentStringFromResponse:(NSDictionary *)json
+{
+    NSDictionary *msg = [self firstChoiceOf:json][@"message"];
     if (![msg isKindOfClass:[NSDictionary class]]) return nil;
     id content = msg[@"content"];
     if ([content isKindOfClass:[NSString class]]) return content;
@@ -194,6 +248,58 @@
         return s;
     }
     return nil;
+}
+
+- (void)collectImagesFrom:(id)images
+{
+    if (![images isKindOfClass:[NSArray class]]) return;
+    for (id item in images) {
+        NSString *url = nil;
+        if ([item isKindOfClass:[NSDictionary class]]) {
+            id iu = item[@"image_url"];
+            if ([iu isKindOfClass:[NSDictionary class]] && [iu[@"url"] isKindOfClass:[NSString class]]) url = iu[@"url"];
+            else if ([item[@"url"] isKindOfClass:[NSString class]]) url = item[@"url"];
+        } else if ([item isKindOfClass:[NSString class]]) {
+            url = item;
+        }
+        if (url.length && ![self.pendingImageURLs containsObject:url]) [self.pendingImageURLs addObject:url];
+    }
+}
+
+// Turns collected data URLs into image attachments on the assistant message.
+- (void)storeGeneratedImagesOn:(ORMessage *)assistant
+{
+    if (!self.pendingImageURLs.count) return;
+    NSMutableArray *atts = [assistant.attachments mutableCopy] ?: [NSMutableArray array];
+    NSInteger n = (NSInteger)atts.count + 1;
+    for (NSString *url in self.pendingImageURLs) {
+        NSString *mime = nil;
+        NSData *data = [ORUtils dataFromDataURL:url mime:&mime];
+        if (!data.length) continue;
+        NSString *name = [NSString stringWithFormat:@"generated-%ld.%@", (long)n++, [ORUtils extensionForMime:mime]];
+        NSString *dest = [ORUtils uniqueAttachmentPathForName:name];
+        if (![data writeToFile:dest atomically:YES]) continue;
+        ORAttachment *a = [[ORAttachment alloc] init];
+        a.attachmentId = [ORUtils uuid];
+        a.storedName = [dest lastPathComponent];
+        a.displayName = name;
+        a.mime = mime ?: @"image/png";
+        a.kind = ORAttachmentKindImage;
+        a.size = data.length;
+        UIImage *img = [ORUtils thumbnailForImageAtPath:dest maxPixels:64];
+        if (img) {
+            CGImageSourceRef src = CGImageSourceCreateWithURL((__bridge CFURLRef)[NSURL fileURLWithPath:dest], NULL);
+            if (src) {
+                NSDictionary *props = (__bridge_transfer NSDictionary *)CGImageSourceCopyPropertiesAtIndex(src, 0, NULL);
+                a.pixelWidth = [props[(id)kCGImagePropertyPixelWidth] integerValue];
+                a.pixelHeight = [props[(id)kCGImagePropertyPixelHeight] integerValue];
+                CFRelease(src);
+            }
+        }
+        [atts addObject:a];
+    }
+    assistant.attachments = atts;
+    [self.pendingImageURLs removeAllObjects];
 }
 
 #pragma mark - Request building
@@ -234,13 +340,15 @@
 {
     ORSettings *settings = [ORSettings shared];
     NSMutableArray *messages = [NSMutableArray array];
-    NSString *sys = [settings.systemPrompt stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSString *sys = [settings activeSystemPrompt];
     if (sys.length) [messages addObject:@{ @"role": @"system", @"content": sys }];
 
-    // History without local error bubbles and without the streaming placeholder.
+    // History without local error bubbles and without the streaming placeholder
+    // (when continuing a cut-off reply, the placeholder IS the last assistant message and stays in).
     NSMutableArray *history = [NSMutableArray array];
     for (ORMessage *m in self.conversation.messages) {
-        if (m.role == ORMessageRoleError || m == self.pendingAssistant) continue;
+        if (m.role == ORMessageRoleError) continue;
+        if (m == self.pendingAssistant && !self.continuing) continue;
         [history addObject:m];
     }
 
@@ -254,7 +362,7 @@
     }
 
     BOOL anyPDF = NO;
-    NSMutableArray *built = [NSMutableArray array];    // parallel to history: dictionaries + size estimate
+    NSMutableArray *built = [NSMutableArray array];
     NSMutableArray *sizes = [NSMutableArray array];
     for (ORMessage *m in history) {
         if (m.role == ORMessageRoleAssistant) {
@@ -310,7 +418,19 @@
     body[@"messages"] = messages;
     if (settings.temperature >= 0 && [model supportsParameter:@"temperature"]) body[@"temperature"] = @(settings.temperature);
     if (settings.maxTokens > 0) body[@"max_tokens"] = @(settings.maxTokens);
+
+    // Reasoning control (only for models that advertise it)
+    NSString *effort = settings.reasoningEffort ?: @"default";
+    if ([model supportsParameter:@"reasoning"] && ![effort isEqualToString:@"default"]) {
+        if ([effort isEqualToString:@"off"]) body[@"reasoning"] = @{ @"enabled": @NO };
+        else body[@"reasoning"] = @{ @"effort": effort };
+    }
+
+    // Image generation for models with image output
+    if ([model supportsImageOutput]) body[@"modalities"] = @[ @"image", @"text" ];
+
     NSMutableArray *plugins = [NSMutableArray array];
+    if (settings.webSearch) [plugins addObject:@{ @"id": @"web", @"max_results": @5 }];
     if (anyPDF) [plugins addObject:@{ @"id": @"file-parser", @"pdf": @{ @"engine": settings.pdfEngine ?: @"cloudflare-ai" } }];
     if (settings.middleOut) [plugins addObject:@{ @"id": @"context-compression", @"engine": @"middle-out" }];
     if (plugins.count) body[@"plugins"] = plugins;
@@ -337,11 +457,12 @@
     ORMessage *assistant = self.pendingAssistant;
     NSDictionary *body = [self buildBodyWithModel:model];
     BOOL stream = [ORSettings shared].streaming;
+    BOOL continuing = self.continuing;
     self.activeRequest = [[OROpenRouterClient shared] chatCompletionWithBody:body stream:stream onDelta:^(NSDictionary *chunk) {
-        NSArray *choices = chunk[@"choices"];
-        if (![choices isKindOfClass:[NSArray class]] || !choices.count) return;
-        id first = choices[0];
-        if (![first isKindOfClass:[NSDictionary class]]) return;
+        NSDictionary *first = [self firstChoiceOf:chunk];
+        if (!first) return;
+        id fr = first[@"finish_reason"];
+        if ([fr isKindOfClass:[NSString class]]) assistant.finishReason = fr;
         NSDictionary *delta = first[@"delta"];
         if (![delta isKindOfClass:[NSDictionary class]]) return;
         id content = delta[@"content"];
@@ -356,6 +477,7 @@
             if (!assistant.text.length) assistant.statusText = L(@"Reasoning…");
             changed = YES;
         }
+        if (delta[@"images"]) [self collectImagesFrom:delta[@"images"]];
         if (changed) {
             if (assistant.text.length) assistant.statusText = nil;
             [self scheduleUpdate];
@@ -365,13 +487,16 @@
         [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(flushUpdate) object:nil];
         self.updateScheduled = NO;
         if (!stream && finalJSON) {
-            NSString *text = [self contentStringFromResponse:finalJSON];
-            assistant.text = text ?: @"";
-            NSArray *choices = finalJSON[@"choices"];
-            if ([choices isKindOfClass:[NSArray class]] && choices.count && [choices[0] isKindOfClass:[NSDictionary class]]) {
-                NSDictionary *msg = choices[0][@"message"];
-                id r = [msg isKindOfClass:[NSDictionary class]] ? msg[@"reasoning"] : nil;
-                if ([r isKindOfClass:[NSString class]]) assistant.reasoning = r;
+            NSString *text = [self contentStringFromResponse:finalJSON] ?: @"";
+            assistant.text = continuing ? [assistant.text stringByAppendingString:text] : text;
+            NSDictionary *first = [self firstChoiceOf:finalJSON];
+            id fr = first[@"finish_reason"];
+            if ([fr isKindOfClass:[NSString class]]) assistant.finishReason = fr;
+            NSDictionary *msg = first[@"message"];
+            if ([msg isKindOfClass:[NSDictionary class]]) {
+                id r = msg[@"reasoning"];
+                if ([r isKindOfClass:[NSString class]] && [r length]) assistant.reasoning = r;
+                if (msg[@"images"]) [self collectImagesFrom:msg[@"images"]];
             }
         }
         NSDictionary *usage = finalJSON[@"usage"];
@@ -381,11 +506,9 @@
             assistant.cost = [usage[@"cost"] doubleValue];
             assistant.hasUsage = YES;
         }
+        [self storeGeneratedImagesOn:assistant];
         [self finishWithError:error];
     }];
-    if (!self.activeRequest && self.pendingAssistant) {
-        // Immediate failure (no key etc.) already reported through the completion block.
-    }
 }
 
 #pragma mark - Finishing
@@ -399,11 +522,13 @@
 {
     ORMessage *assistant = self.pendingAssistant;
     self.pendingAssistant = nil;
+    self.continuing = NO;
     assistant.isStreaming = NO;
     assistant.statusText = nil;
     BOOL cancelled = error && error.code == ORErrorCancelled && [error.domain isEqualToString:ORErrorDomain];
+    BOOL hasContent = assistant.text.length > 0 || assistant.attachments.count > 0;
 
-    if (assistant.text.length == 0) {
+    if (!hasContent) {
         [self.conversation.messages removeObject:assistant];
         if (error && !cancelled) {
             [self appendErrorMessage:error.localizedDescription];

@@ -4,5 +4,6 @@
 @interface ORChatViewController : UIViewController
 
 - (void)attachIncomingAttachment:(id)attachment;
+- (void)cancelActiveRequest;
 
 @end

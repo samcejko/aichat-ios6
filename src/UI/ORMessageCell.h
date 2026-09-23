@@ -7,12 +7,17 @@
 - (void)messageCell:(ORMessageCell *)cell didLongPressMessage:(ORMessage *)message;
 - (void)messageCell:(ORMessageCell *)cell didTapAttachment:(ORAttachment *)attachment;
 - (void)messageCell:(ORMessageCell *)cell didToggleVisionNoteForMessage:(ORMessage *)message;
+- (void)messageCell:(ORMessageCell *)cell didToggleReasoningForMessage:(ORMessage *)message;
 - (BOOL)messageCell:(ORMessageCell *)cell canRegenerateMessage:(ORMessage *)message;
+- (BOOL)messageCell:(ORMessageCell *)cell canEditMessage:(ORMessage *)message;
 - (void)messageCell:(ORMessageCell *)cell regenerateMessage:(ORMessage *)message;
+- (void)messageCell:(ORMessageCell *)cell editMessage:(ORMessage *)message;
+- (void)messageCell:(ORMessageCell *)cell continueMessage:(ORMessage *)message;
+- (void)messageCell:(ORMessageCell *)cell saveImagesOfMessage:(ORMessage *)message;
 - (void)messageCell:(ORMessageCell *)cell deleteMessage:(ORMessage *)message;
 @end
 
-// Chat bubble cell. Layout is computed once per (message, width) and reused for the height query.
+// Chat bubble cell. Layout is computed once per (message state, width) and reused for the height query.
 @interface ORMessageCell : UITableViewCell
 
 @property (nonatomic, weak) id<ORMessageCellDelegate> delegate;

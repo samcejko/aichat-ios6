@@ -225,6 +225,56 @@ static UIImage *ORBarBackgroundImage(UIColor *top, UIColor *bottom, UIColor *lin
     }];
 }
 
+- (UIImage *)globeImageActive:(BOOL)active
+{
+    NSString *key = active ? @"globe-on" : @"globe-off";
+    return [self cachedImage:key builder:^UIImage *{
+        CGSize size = CGSizeMake(30, 30);
+        UIGraphicsBeginImageContextWithOptions(size, NO, 0);
+        CGRect circle = CGRectMake(4, 4, 22, 22);
+        UIColor *line;
+        if (active) {
+            [[self accentColor] setFill];
+            [[UIBezierPath bezierPathWithOvalInRect:CGRectInset(circle, -1, -1)] fill];
+            line = [UIColor whiteColor];
+        } else {
+            line = self.dark ? RGB(200, 200, 205) : RGB(90, 90, 98);
+        }
+        [line setStroke];
+        UIBezierPath *outer = [UIBezierPath bezierPathWithOvalInRect:circle];
+        outer.lineWidth = 1.8;
+        [outer stroke];
+        UIBezierPath *meridian = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(10, 4, 10, 22)];
+        meridian.lineWidth = 1.2;
+        [meridian stroke];
+        UIBezierPath *lines = [UIBezierPath bezierPath];
+        [lines moveToPoint:CGPointMake(4, 15)];
+        [lines addLineToPoint:CGPointMake(26, 15)];
+        [lines moveToPoint:CGPointMake(6.5, 9.5)];
+        [lines addLineToPoint:CGPointMake(23.5, 9.5)];
+        [lines moveToPoint:CGPointMake(6.5, 20.5)];
+        [lines addLineToPoint:CGPointMake(23.5, 20.5)];
+        lines.lineWidth = 1.2;
+        [lines stroke];
+        UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
+        return img;
+    }];
+}
+
+- (UIImage *)smallButtonImageHighlighted:(BOOL)highlighted
+{
+    NSString *key = highlighted ? @"small-hi" : @"small";
+    return [self cachedImage:key builder:^UIImage *{
+        if (self.dark) {
+            if (highlighted) return ORRoundedGradientImage(RGB(70, 70, 76), RGB(50, 50, 56), RGB(90, 90, 96), 6, YES);
+            return ORRoundedGradientImage(RGB(96, 96, 102), RGB(66, 66, 72), RGB(110, 110, 116), 6, YES);
+        }
+        if (highlighted) return ORRoundedGradientImage(RGB(205, 208, 215), RGB(175, 178, 188), RGB(150, 152, 160), 6, YES);
+        return ORRoundedGradientImage(RGB(250, 250, 252), RGB(216, 218, 226), RGB(165, 168, 178), 6, YES);
+    }];
+}
+
 - (UIImage *)disclosureArrowImage
 {
     return [self cachedImage:@"disclosure" builder:^UIImage *{

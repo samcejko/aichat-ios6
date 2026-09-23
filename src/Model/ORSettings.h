@@ -46,6 +46,19 @@ typedef NS_ENUM(NSInteger, ORModelSort) {
 @property (nonatomic, strong) NSDate *lastModelsRefresh;
 @property (nonatomic) BOOL showVisionNotes;
 
+// New in 0.2
+@property (nonatomic) BOOL webSearch;                       // OpenRouter "web" plugin on every request
+@property (nonatomic, copy) NSString *reasoningEffort;      // default | off | low | medium | high
+@property (nonatomic) BOOL showReasoning;
+
+// Personas: array of dictionaries { id, name, prompt }. "none" means no system prompt.
+@property (nonatomic, strong) NSArray *personas;
+@property (nonatomic, copy) NSString *activePersonaId;
+- (NSDictionary *)activePersona;
+- (NSString *)activeSystemPrompt;
+- (void)addOrUpdatePersona:(NSDictionary *)persona;
+- (void)removePersonaWithId:(NSString *)personaId;
+
 - (void)save;
 
 @end

@@ -4,7 +4,7 @@
 #import "ORModelCatalog.h"
 #import "ORModelPickerViewController.h"
 #import "ORAPIKeyViewController.h"
-#import "ORTextEditorViewController.h"
+#import "ORPersonaViewController.h"
 #import "ORChoiceViewController.h"
 #import "OROpenRouterClient.h"
 #import "ORTLSSocket.h"
@@ -138,6 +138,20 @@ typedef NS_ENUM(NSInteger, ORSection) {
     return @[ @"cloudflare-ai", @"native", @"mistral-ocr" ];
 }
 
+- (NSArray *)reasoningValues
+{
+    return @[ @"default", @"off", @"low", @"medium", @"high" ];
+}
+
+- (NSString *)reasoningTitleForValue:(NSString *)value
+{
+    if ([value isEqualToString:@"off"]) return L(@"Off");
+    if ([value isEqualToString:@"low"]) return L(@"Low");
+    if ([value isEqualToString:@"medium"]) return L(@"Medium");
+    if ([value isEqualToString:@"high"]) return L(@"High");
+    return L(@"Model default");
+}
+
 - (NSString *)pdfEngineTitle:(NSString *)engine
 {
     if ([engine isEqualToString:@"native"]) return L(@"Native (model reads the PDF)");
@@ -211,7 +225,7 @@ typedef NS_ENUM(NSInteger, ORSection) {
     switch ((ORSection)section) {
         case ORSectionAccount: return 2;
         case ORSectionModels: return 4;
-        case ORSectionChat: return 6;
+        case ORSectionChat: return 9;
         case ORSectionAppearance: return 2;
         case ORSectionAttachments: return 2;
         case ORSectionAdvanced: return 4;
@@ -238,7 +252,7 @@ typedef NS_ENUM(NSInteger, ORSection) {
 {
     switch ((ORSection)section) {
         case ORSectionModels: return L(@"The vision helper describes images for models that cannot see them. Pick a free model with image input.");
-        case ORSectionChat: return L(@"Context compression lets OpenRouter shorten very long conversations instead of failing.");
+        case ORSectionChat: return L(@"Web search adds a paid search plugin (a few cents per request). Reasoning effort only applies to models that support it.");
         case ORSectionAdvanced: return L(@"Turn certificate verification off only if the device clock is wrong or the certificate bundle is outdated.");
         default: return nil;
     }
@@ -299,9 +313,23 @@ typedef NS_ENUM(NSInteger, ORSection) {
             break;
         case ORSectionChat:
             if (row == 0) {
-                cell.textLabel.text = L(@"System prompt");
-                cell.detailTextLabel.text = s.systemPrompt.length ? [ORUtils truncate:s.systemPrompt to:80] : L(@"None");
+                cell.textLabel.text = L(@"Persona");
+                NSDictionary *p = [s activePersona];
+                NSString *prompt = [s activeSystemPrompt];
+                cell.detailTextLabel.text = prompt.length ? [NSString stringWithFormat:@"%@ · %@", p[@"name"], [ORUtils truncate:prompt to:60]] : (p[@"name"] ?: L(@"None"));
                 cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+            } else if (row == 6) {
+                cell.textLabel.text = L(@"Web search");
+                cell.accessoryView = [self switchOn:s.webSearch tag:tag];
+                cell.selectionStyle = UITableViewCellSelectionStyleNone;
+            } else if (row == 7) {
+                cell.textLabel.text = L(@"Reasoning effort");
+                cell.detailTextLabel.text = [self reasoningTitleForValue:s.reasoningEffort];
+                cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+            } else if (row == 8) {
+                cell.textLabel.text = L(@"Show reasoning");
+                cell.accessoryView = [self switchOn:s.showReasoning tag:tag];
+                cell.selectionStyle = UITableViewCellSelectionStyleNone;
             } else if (row == 1) {
                 cell.textLabel.text = L(@"Temperature");
                 cell.accessoryView = [self segmentedWithItems:@[ L(@"Auto"), @"0.3", @"0.7", @"1.0", @"1.3" ]
@@ -416,6 +444,8 @@ typedef NS_ENUM(NSInteger, ORSection) {
     if (sec == ORSectionChat && row == 3) s.streaming = sw.on;
     else if (sec == ORSectionChat && row == 4) s.showUsage = sw.on;
     else if (sec == ORSectionChat && row == 5) s.middleOut = sw.on;
+    else if (sec == ORSectionChat && row == 6) s.webSearch = sw.on;
+    else if (sec == ORSectionChat && row == 8) s.showReasoning = sw.on;
     else if (sec == ORSectionAttachments && row == 1) s.showVisionNotes = sw.on;
     else if (sec == ORSectionAdvanced && row == 0) s.verifyTLS = sw.on;
     else if (sec == ORSectionAdvanced && row == 1) s.resumeLastChat = sw.on;
@@ -474,13 +504,20 @@ typedef NS_ENUM(NSInteger, ORSection) {
         }];
         [self.tableView reloadData];
     } else if (sec == ORSectionChat && row == 0) {
-        ORTextEditorViewController *vc = [[ORTextEditorViewController alloc] init];
-        vc.title = L(@"System prompt");
-        vc.text = s.systemPrompt;
-        vc.placeholderText = L(@"Instructions sent to the model at the start of every conversation, e.g. \"Answer in Czech, be concise.\"");
-        vc.completion = ^(NSString *text) {
-            if (text) { s.systemPrompt = text; [s save]; }
-            [self.navigationController popViewControllerAnimated:YES];
+        ORPersonaListViewController *vc = [[ORPersonaListViewController alloc] init];
+        [self.navigationController pushViewController:vc animated:YES];
+    } else if (sec == ORSectionChat && row == 7) {
+        ORChoiceViewController *vc = [[ORChoiceViewController alloc] init];
+        vc.title = L(@"Reasoning effort");
+        NSMutableArray *titles = [NSMutableArray array];
+        for (NSString *v in [self reasoningValues]) [titles addObject:[self reasoningTitleForValue:v]];
+        vc.titles = titles;
+        vc.subtitles = @[ L(@"Let the model decide."), L(@"Disable thinking, faster and cheaper."), L(@"Brief thinking."), L(@"Balanced."), L(@"Deep thinking, slow and expensive.") ];
+        NSUInteger idx = [[self reasoningValues] indexOfObject:s.reasoningEffort];
+        vc.selectedIndex = idx == NSNotFound ? 0 : (NSInteger)idx;
+        vc.completion = ^(NSInteger index) {
+            s.reasoningEffort = [self reasoningValues][index];
+            [s save];
         };
         [self.navigationController pushViewController:vc animated:YES];
     } else if (sec == ORSectionAdvanced && row == 2) {
