@@ -6,6 +6,7 @@
 @protocol ORMessageCellDelegate <NSObject>
 - (void)messageCell:(ORMessageCell *)cell didLongPressMessage:(ORMessage *)message;
 - (void)messageCell:(ORMessageCell *)cell didTapAttachment:(ORAttachment *)attachment;
+- (void)messageCell:(ORMessageCell *)cell didTapImageURL:(NSString *)url;
 - (void)messageCell:(ORMessageCell *)cell didToggleVisionNoteForMessage:(ORMessage *)message;
 - (void)messageCell:(ORMessageCell *)cell didToggleReasoningForMessage:(ORMessage *)message;
 - (BOOL)messageCell:(ORMessageCell *)cell canRegenerateMessage:(ORMessage *)message;

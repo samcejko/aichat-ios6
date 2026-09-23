@@ -83,6 +83,7 @@ static void ORLoadCABundle(void)
     BOOL _initialized;
     BOOL _connected;
     volatile BOOL _cancelled;
+    uint32_t _readTimeoutMs;
 }
 
 + (void)ensureCALoaded
@@ -201,6 +202,17 @@ static int ORConnectTCP(NSString *host, int port, int timeoutMs, NSError **error
 - (BOOL)connectToHost:(NSString *)host port:(int)port verify:(BOOL)verify
      connectTimeoutMs:(int)connectMs readTimeoutMs:(int)readMs error:(NSError **)error
 {
+    _readTimeoutMs = (uint32_t)readMs;
+    if (self.plain) {
+        int fd = ORConnectTCP(host, port, connectMs, error);
+        if (fd < 0) return NO;
+        @synchronized (self) {
+            _net.fd = fd;
+        }
+        _connected = YES;
+        return YES;
+    }
+
     [ORTLSSocket ensureCALoaded];
     int ret;
     const char *pers = "aichat-ios6";
@@ -276,7 +288,7 @@ static int ORConnectTCP(NSString *host, int port, int timeoutMs, NSError **error
 
 - (NSString *)cipherSuite
 {
-    if (!_connected) return nil;
+    if (!_connected || self.plain) return nil;
     const char *cs = mbedtls_ssl_get_ciphersuite(&_ssl);
     return cs ? [NSString stringWithUTF8String:cs] : nil;
 }
@@ -284,6 +296,7 @@ static int ORConnectTCP(NSString *host, int port, int timeoutMs, NSError **error
 - (NSString *)tlsVersion
 {
     if (!_connected) return nil;
+    if (self.plain) return @"plain";
     const char *v = mbedtls_ssl_get_version(&_ssl);
     return v ? [NSString stringWithUTF8String:v] : nil;
 }
@@ -297,7 +310,7 @@ static int ORConnectTCP(NSString *host, int port, int timeoutMs, NSError **error
             ORSetError(error, ORErrorCancelled, L(@"Cancelled"));
             return NO;
         }
-        int ret = mbedtls_ssl_write(&_ssl, p, left);
+        int ret = self.plain ? mbedtls_net_send(&_net, p, left) : mbedtls_ssl_write(&_ssl, p, left);
         if (ret > 0) {
             p += ret;
             left -= (size_t)ret;
@@ -317,7 +330,8 @@ static int ORConnectTCP(NSString *host, int port, int timeoutMs, NSError **error
             ORSetError(error, ORErrorCancelled, L(@"Cancelled"));
             return -1;
         }
-        int ret = mbedtls_ssl_read(&_ssl, (unsigned char *)buffer, maxLength);
+        int ret = self.plain ? mbedtls_net_recv_timeout(&_net, (unsigned char *)buffer, maxLength, _readTimeoutMs)
+                             : mbedtls_ssl_read(&_ssl, (unsigned char *)buffer, maxLength);
         if (ret > 0) return ret;
         if (ret == 0 || ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) return 0;
         if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) continue;
@@ -342,7 +356,7 @@ static int ORConnectTCP(NSString *host, int port, int timeoutMs, NSError **error
 - (void)close
 {
     if (!_initialized) return;
-    if (_connected && !_cancelled) {
+    if (_connected && !_cancelled && !self.plain) {
         mbedtls_ssl_close_notify(&_ssl);
     }
     @synchronized (self) {

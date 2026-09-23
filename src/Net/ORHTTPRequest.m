@@ -46,6 +46,7 @@ typedef NS_ENUM(NSInteger, ORChunkState) {
     self = [super init];
     if (self) {
         _port = 443;
+        _secure = YES;
         _connectTimeout = 15;
         _readTimeout = 120;
         _verifyTLS = [ORSettings shared].verifyTLS;
@@ -242,6 +243,7 @@ typedef NS_ENUM(NSInteger, ORChunkState) {
         [self finishWithError:ORMakeError(ORErrorCancelled, L(@"Cancelled"))];
         return;
     }
+    self.socket.plain = !self.secure;
     if (![self.socket connectToHost:self.host port:(int)self.port verify:self.verifyTLS
                    connectTimeoutMs:(int)(self.connectTimeout * 1000) readTimeoutMs:(int)(self.readTimeout * 1000) error:&error]) {
         [self finishWithError:error ?: ORMakeError(ORErrorNetwork, L(@"Connection failed."))];

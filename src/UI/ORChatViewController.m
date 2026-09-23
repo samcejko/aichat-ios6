@@ -9,6 +9,8 @@
 #import "ORFileBrowserViewController.h"
 #import "ORPersonaViewController.h"
 #import "ORPhotoPickerViewController.h"
+#import "ORImageViewerViewController.h"
+#import "ORImageLoader.h"
 #import "ORModelCatalog.h"
 #import "ORSettings.h"
 #import "ORStore.h"
@@ -114,6 +116,7 @@ static NSString * const kCellId = @"msg";
     [nc addObserver:self selector:@selector(modelsUpdated) name:ORModelsDidUpdateNotification object:nil];
     [nc addObserver:self selector:@selector(settingsChanged) name:ORSettingsDidChangeNotification object:nil];
     [nc addObserver:self selector:@selector(apiKeyChanged) name:ORAPIKeyDidChangeNotification object:nil];
+    [nc addObserver:self selector:@selector(remoteImageLoaded:) name:ORImageDidLoadNotification object:nil];
 
     [self startConversationResuming:YES];
     [self updateModelFromSettings];
@@ -206,6 +209,26 @@ static NSString * const kCellId = @"msg";
 - (void)cancelActiveRequest
 {
     [self.engine cancel];
+}
+
+- (void)remoteImageLoaded:(NSNotification *)n
+{
+    // Image heights are only known after download: recompute layouts and refresh.
+    BOOL wasNear = [self isNearBottom];
+    [ORMessageCell invalidateLayoutCache];
+    [self.tableView reloadData];
+    if (wasNear) [self scrollToBottomAnimated:NO];
+}
+
+- (void)messageCell:(ORMessageCell *)cell didTapImageURL:(NSString *)url
+{
+    UIImage *img = [[ORImageLoader shared] imageForURL:url];
+    if (!img) return;
+    ORImageViewerViewController *vc = [[ORImageViewerViewController alloc] init];
+    vc.image = img;
+    vc.title = [url lastPathComponent];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
+    [self presentViewController:nav animated:YES completion:nil];
 }
 
 #pragma mark - Conversation

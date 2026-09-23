@@ -17,6 +17,7 @@ typedef void (^ORHTTPCompleteBlock)(NSInteger status, NSData *body, NSError *err
 @property (nonatomic) NSTimeInterval connectTimeout;    // seconds, default 15
 @property (nonatomic) NSTimeInterval readTimeout;       // seconds, default 120
 @property (nonatomic) BOOL verifyTLS;
+@property (nonatomic) BOOL secure;                      // YES = TLS (default), NO = plain HTTP
 @property (nonatomic) BOOL streamBody;                  // deliver body through onData instead of completion
 
 @property (nonatomic, copy) ORHTTPHeadersBlock onHeaders;

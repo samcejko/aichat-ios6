@@ -255,8 +255,9 @@ static NSString *ORSubscript(NSString *s)
                     continue;
                 }
             }
-            // $ ... $ (single dollar, same line, no spaces right after/before the delimiters, not a price)
-            if (c == '$' && i + 1 < len && [seg characterAtIndex:i + 1] != '$' && [seg characterAtIndex:i + 1] != ' ') {
+            // $ ... $ (single dollar, same line, no spaces right after/before the delimiters, not a price, not "\$")
+            BOOL escaped = i > 0 && [seg characterAtIndex:i - 1] == '\\';
+            if (c == '$' && !escaped && i + 1 < len && [seg characterAtIndex:i + 1] != '$' && [seg characterAtIndex:i + 1] != ' ') {
                 NSUInteger j = i + 1;
                 while (j < len) {
                     unichar d = [seg characterAtIndex:j];
@@ -280,6 +281,82 @@ static NSString *ORSubscript(NSString *s)
             }
             [out appendFormat:@"%C", c];
             i++;
+        }
+        return out;
+    }];
+}
+
+#pragma mark - Text-mode LaTeX
+
++ (NSString *)cleanupTextLatexIn:(NSString *)text
+{
+    if (!text.length || [text rangeOfString:@"\\"].location == NSNotFound) return text ?: @"";
+    return [self mapNonCodeSegmentsOf:text with:^NSString *(NSString *seg) {
+        NSMutableString *out = [NSMutableString string];
+        NSUInteger i = 0, len = seg.length;
+        NSDictionary *simple = @{ @"&": @"&", @"%": @"%", @"#": @"#", @"$": @"$", @"_": @"_", @"{": @"{", @"}": @"}",
+                                  @"textbackslash": @"\\", @"textasciitilde": @"~", @"textasciicircum": @"^",
+                                  @"ldots": @"…", @"dots": @"…", @"textellipsis": @"…", @"textendash": @"–", @"textemdash": @"—",
+                                  @"textquotedblleft": @"“", @"textquotedblright": @"”", @"textquoteleft": @"‘", @"textquoteright": @"’",
+                                  @"copyright": @"©", @"textregistered": @"®", @"texttrademark": @"™", @"textdegree": @"°",
+                                  @"euro": @"€", @"pounds": @"£", @"S": @"§", @"P": @"¶", @"dag": @"†", @"ddag": @"‡",
+                                  @"newline": @"\n", @"linebreak": @"\n", @"par": @"\n\n", @"noindent": @"", @"centering": @"",
+                                  @"newpage": @"", @"clearpage": @"", @"maketitle": @"", @"tableofcontents": @"", @"hfill": @" ",
+                                  @"vspace": @"", @"hspace": @"", @"smallskip": @"", @"medskip": @"", @"bigskip": @"", @"item": @"• " };
+        while (i < len) {
+            unichar c = [seg characterAtIndex:i];
+            if (c != '\\' || i + 1 >= len) { [out appendFormat:@"%C", c]; i++; continue; }
+            unichar n = [seg characterAtIndex:i + 1];
+            NSUInteger j = i + 1;
+            if ([[NSCharacterSet letterCharacterSet] characterIsMember:n]) {
+                while (j < len && [[NSCharacterSet letterCharacterSet] characterIsMember:[seg characterAtIndex:j]]) j++;
+            } else {
+                j = i + 2;
+            }
+            NSString *name = [seg substringWithRange:NSMakeRange(i + 1, j - i - 1)];
+            NSUInteger end = j;
+            // commands taking one brace argument
+            if ([name isEqualToString:@"textbf"] || [name isEqualToString:@"textit"] || [name isEqualToString:@"emph"] ||
+                [name isEqualToString:@"texttt"] || [name isEqualToString:@"underline"] || [name isEqualToString:@"textsc"] ||
+                [name isEqualToString:@"textsuperscript"] || [name isEqualToString:@"textsubscript"] || [name isEqualToString:@"textrm"] ||
+                [name isEqualToString:@"textsf"] || [name isEqualToString:@"textnormal"] || [name isEqualToString:@"uppercase"] ||
+                [name isEqualToString:@"url"] || [name isEqualToString:@"href"] || [name isEqualToString:@"footnote"] ||
+                [name isEqualToString:@"label"] || [name isEqualToString:@"ref"] || [name isEqualToString:@"cite"] ||
+                [name isEqualToString:@"pagestyle"] || [name isEqualToString:@"documentclass"] || [name isEqualToString:@"usepackage"] ||
+                [name isEqualToString:@"begin"] || [name isEqualToString:@"end"] || [name isEqualToString:@"vspace"] || [name isEqualToString:@"hspace"]) {
+                // optional [..] argument
+                if (end < len && [seg characterAtIndex:end] == '[') {
+                    NSRange rb = [seg rangeOfString:@"]" options:NSLiteralSearch range:NSMakeRange(end, len - end)];
+                    end = rb.location == NSNotFound ? len : rb.location + 1;
+                }
+                NSString *arg = @"";
+                if (end < len && [seg characterAtIndex:end] == '{') arg = [self braceGroupIn:seg from:end end:&end];
+                NSString *inner = [self cleanupTextLatexIn:arg];
+                if ([name isEqualToString:@"textbf"]) [out appendFormat:@"**%@**", inner];
+                else if ([name isEqualToString:@"textit"] || [name isEqualToString:@"emph"]) [out appendFormat:@"*%@*", inner];
+                else if ([name isEqualToString:@"texttt"]) [out appendFormat:@"`%@`", inner];
+                else if ([name isEqualToString:@"textsuperscript"]) [out appendString:ORSuperscript(inner) ?: [NSString stringWithFormat:@"^(%@)", inner]];
+                else if ([name isEqualToString:@"textsubscript"]) [out appendString:ORSubscript(inner) ?: [NSString stringWithFormat:@"_(%@)", inner]];
+                else if ([name isEqualToString:@"href"]) {
+                    NSUInteger e2 = end;
+                    NSString *label = (end < len && [seg characterAtIndex:end] == '{') ? [self braceGroupIn:seg from:end end:&e2] : inner;
+                    [out appendFormat:@"[%@](%@)", [self cleanupTextLatexIn:label], inner];
+                    end = e2;
+                }
+                else if ([name isEqualToString:@"footnote"]) [out appendFormat:@" (%@)", inner];
+                else if ([name isEqualToString:@"ref"] || [name isEqualToString:@"cite"]) [out appendFormat:@"[%@]", inner];
+                else if ([name isEqualToString:@"label"] || [name isEqualToString:@"pagestyle"] || [name isEqualToString:@"documentclass"] ||
+                         [name isEqualToString:@"usepackage"] || [name isEqualToString:@"begin"] || [name isEqualToString:@"end"] ||
+                         [name isEqualToString:@"vspace"] || [name isEqualToString:@"hspace"]) { /* dropped */ }
+                else [out appendString:inner];
+                i = end;
+                continue;
+            }
+            NSString *rep = simple[name];
+            if (rep) { [out appendString:rep]; i = end; continue; }
+            // unknown command: keep it as written
+            [out appendString:[seg substringWithRange:NSMakeRange(i, end - i)]];
+            i = end;
         }
         return out;
     }];

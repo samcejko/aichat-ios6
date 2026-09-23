@@ -10,6 +10,7 @@ typedef NS_ENUM(NSInteger, ORMDBlockType) {
     ORMDBlockRule,
     ORMDBlockTable,
     ORMDBlockMath,      // display math, rawText holds the LaTeX
+    ORMDBlockImage,     // remote image, rawText = URL, language = alt text
 };
 
 @interface ORMDBlock : NSObject

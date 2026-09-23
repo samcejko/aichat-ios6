@@ -13,4 +13,7 @@
 // <br> -> newline, common inline tags stripped, HTML entities decoded. Leaves code spans alone.
 + (NSString *)cleanupHTMLIn:(NSString *)text;
 
+// Text-mode LaTeX outside math: \textbf{x} -> **x**, \textsuperscript{2} -> ², \& -> &, \ldots -> … etc.
++ (NSString *)cleanupTextLatexIn:(NSString *)text;
+
 @end

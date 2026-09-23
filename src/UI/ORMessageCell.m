@@ -8,8 +8,25 @@
 #import <QuartzCore/QuartzCore.h>
 #import "MTMathUILabel.h"
 #import "MTFontManager.h"
+#import "ORImageLoader.h"
+#import <objc/runtime.h>
 
+static char kORImageURLKey;
 static const CGFloat kSideMargin = 8.0;
+static const CGFloat kRemoteImageMaxHeight = 320.0;
+static const CGFloat kRemoteImagePlaceholderHeight = 72.0;
+
+// Size of a remote image block; starts the download when needed.
+static CGSize ORRemoteImageSize(NSString *url, CGFloat maxWidth)
+{
+    UIImage *img = [[ORImageLoader shared] imageForURL:url];
+    if (!img) return CGSizeMake(maxWidth, [[ORImageLoader shared] hasFailed:url] ? 40.0 : kRemoteImagePlaceholderHeight);
+    CGFloat w = img.size.width, h = img.size.height;
+    if (w < 1 || h < 1) return CGSizeMake(maxWidth, kRemoteImagePlaceholderHeight);
+    CGFloat scale = MIN(maxWidth / w, kRemoteImageMaxHeight / h);
+    if (scale > 1.0) scale = 1.0;
+    return CGSizeMake(floor(w * scale), floor(h * scale));
+}
 static const CGFloat kMathPad = 6.0;
 static const CGFloat kMathMaxHeight = 420.0;
 
@@ -290,6 +307,9 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         first = NO;
         CGSize size = CGSizeZero;
         switch (b.type) {
+            case ORMDBlockImage:
+                size = ORRemoteImageSize(b.rawText, contentMax);
+                break;
             case ORMDBlockMath: {
                 CGSize s = ORMeasureMath(b.rawText);
                 if (s.width <= 0) {
@@ -561,6 +581,38 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         f.origin.y += kBubblePadV;
         UIView *v = nil;
         switch (bf.block.type) {
+            case ORMDBlockImage: {
+                UIImage *img = [[ORImageLoader shared] imageForURL:bf.block.rawText];
+                if (img) {
+                    UIImageView *iv = [[UIImageView alloc] initWithFrame:f];
+                    iv.image = img;
+                    iv.contentMode = UIViewContentModeScaleAspectFit;
+                    iv.clipsToBounds = YES;
+                    iv.layer.cornerRadius = 6;
+                    iv.userInteractionEnabled = YES;
+                    iv.backgroundColor = [UIColor clearColor];
+                    UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(remoteImageTapped:)];
+                    [iv addGestureRecognizer:tap];
+                    objc_setAssociatedObject(iv, &kORImageURLKey, bf.block.rawText, OBJC_ASSOCIATION_COPY_NONATOMIC);
+                    v = iv;
+                } else {
+                    UIView *box = [[UIView alloc] initWithFrame:f];
+                    box.backgroundColor = [theme codeBackgroundColorInUserBubble:isUser];
+                    box.layer.cornerRadius = 6;
+                    UILabel *l = [[UILabel alloc] initWithFrame:CGRectInset(box.bounds, 8, 4)];
+                    l.numberOfLines = 2;
+                    l.font = [theme smallFont];
+                    l.textColor = [theme secondaryTextColor];
+                    l.backgroundColor = [UIColor clearColor];
+                    l.textAlignment = NSTextAlignmentCenter;
+                    BOOL failed = [[ORImageLoader shared] hasFailed:bf.block.rawText];
+                    NSString *alt = bf.block.language.length ? bf.block.language : bf.block.rawText;
+                    l.text = failed ? [NSString stringWithFormat:@"%@\n%@", L(@"Image unavailable"), alt] : [NSString stringWithFormat:@"%@\n%@", L(@"Loading image…"), alt];
+                    [box addSubview:l];
+                    v = box;
+                }
+                break;
+            }
             case ORMDBlockMath: {
                 CGSize natural = ORMeasureMath(bf.block.rawText);
                 if (natural.width <= 0) {
@@ -686,6 +738,12 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
 - (void)continueTapped
 {
     [self.delegate messageCell:self continueMessage:self.message];
+}
+
+- (void)remoteImageTapped:(UITapGestureRecognizer *)g
+{
+    NSString *url = objc_getAssociatedObject(g.view, &kORImageURLKey);
+    if (url.length) [self.delegate messageCell:self didTapImageURL:url];
 }
 
 - (void)attachmentTapped:(UITapGestureRecognizer *)g

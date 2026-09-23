@@ -396,7 +396,7 @@ static NSString *ORStripAlignment(NSString *latex)
 
     void (^flushPara)(void) = ^{
         if (!para.count) return;
-        NSString *joined = [ORMathText convertInlineMathIn:[para componentsJoinedByString:@"\n"]];
+        NSString *joined = [ORMathText cleanupTextLatexIn:[ORMathText convertInlineMathIn:[para componentsJoinedByString:@"\n"]]];
         [para removeAllObjects];
         ORMDBlock *b = [[ORMDBlock alloc] init];
         b.type = ORMDBlockParagraph;
@@ -410,6 +410,77 @@ static NSString *ORStripAlignment(NSString *latex)
     while (i < n) {
         NSString *line = lines[i];
         NSString *lang = nil;
+
+        // Standalone remote image: ![alt](url)
+        {
+            NSString *t = [line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+            if ([t hasPrefix:@"!["] && [t hasSuffix:@")"]) {
+                NSRange mid = [t rangeOfString:@"]("];
+                if (mid.location != NSNotFound) {
+                    NSString *alt = [t substringWithRange:NSMakeRange(2, mid.location - 2)];
+                    NSString *url = [t substringWithRange:NSMakeRange(mid.location + 2, t.length - mid.location - 3)];
+                    NSRange sp = [url rangeOfString:@" "];
+                    if (sp.location != NSNotFound) url = [url substringToIndex:sp.location];   // drop "title"
+                    if ([url hasPrefix:@"http://"] || [url hasPrefix:@"https://"]) {
+                        flushPara();
+                        ORMDBlock *b = [[ORMDBlock alloc] init];
+                        b.type = ORMDBlockImage;
+                        b.rawText = url;
+                        b.language = alt;
+                        [blocks addObject:b];
+                        i++;
+                        continue;
+                    }
+                }
+            }
+            // Text-mode LaTeX structure: \section{..}, \item, environments
+            if ([t hasPrefix:@"\\section{"] || [t hasPrefix:@"\\subsection{"] || [t hasPrefix:@"\\subsubsection{"] || [t hasPrefix:@"\\chapter{"] || [t hasPrefix:@"\\section*{"] || [t hasPrefix:@"\\subsection*{"]) {
+                flushPara();
+                NSInteger level = [t hasPrefix:@"\\chapter"] ? 1 : [t hasPrefix:@"\\subsubsection"] ? 4 : [t hasPrefix:@"\\subsection"] ? 3 : 2;
+                NSRange open = [t rangeOfString:@"{"];
+                NSString *content = [t substringFromIndex:open.location + 1];
+                if ([content hasSuffix:@"}"]) content = [content substringToIndex:content.length - 1];
+                ORMDBlock *b = [[ORMDBlock alloc] init];
+                b.type = ORMDBlockHeading;
+                b.level = level;
+                inlineParser.paragraphStyle = nil;
+                NSMutableAttributedString *h = [inlineParser parse:[ORMathText cleanupTextLatexIn:[ORMathText convertInlineMathIn:content]]];
+                [h addAttribute:NSFontAttributeName value:[theme headingFontForLevel:level] range:NSMakeRange(0, h.length)];
+                b.text = h;
+                [blocks addObject:b];
+                i++;
+                continue;
+            }
+            if ([t hasPrefix:@"\\item"]) {
+                flushPara();
+                NSString *content = [[t substringFromIndex:5] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                if ([content hasPrefix:@"["]) {
+                    NSRange rb = [content rangeOfString:@"]"];
+                    if (rb.location != NSNotFound) content = [[content substringFromIndex:rb.location + 1] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                }
+                NSMutableParagraphStyle *ps = [[NSMutableParagraphStyle alloc] init];
+                CGFloat markerWidth = ceil([@"•  " sizeWithFont:[theme messageFont]].width);
+                ps.headIndent = markerWidth;
+                ps.lineBreakMode = NSLineBreakByWordWrapping;
+                inlineParser.paragraphStyle = ps;
+                NSMutableAttributedString *m = [[NSMutableAttributedString alloc] initWithString:@"•  " attributes:@{ NSFontAttributeName: [theme messageFont], NSForegroundColorAttributeName: textColor, NSParagraphStyleAttributeName: ps }];
+                [m appendAttributedString:[inlineParser parse:[ORMathText cleanupTextLatexIn:[ORMathText convertInlineMathIn:content]]]];
+                ORMDBlock *b = [[ORMDBlock alloc] init];
+                b.type = ORMDBlockListItem;
+                b.text = m;
+                [blocks addObject:b];
+                i++;
+                continue;
+            }
+            if ([t hasPrefix:@"\\begin{itemize"] || [t hasPrefix:@"\\begin{enumerate"] || [t hasPrefix:@"\\end{itemize"] || [t hasPrefix:@"\\end{enumerate"] ||
+                [t hasPrefix:@"\\begin{document"] || [t hasPrefix:@"\\end{document"] || [t hasPrefix:@"\\documentclass"] || [t hasPrefix:@"\\usepackage"] ||
+                [t isEqualToString:@"\\maketitle"] || [t isEqualToString:@"\\tableofcontents"] || [t hasPrefix:@"\\pagestyle{"] || [t isEqualToString:@"\\newpage"] ||
+                [t hasPrefix:@"\\begin{center"] || [t hasPrefix:@"\\end{center"]) {
+                flushPara();
+                i++;
+                continue;
+            }
+        }
 
         // Display math: $$ ... $$ or \[ ... \]
         {

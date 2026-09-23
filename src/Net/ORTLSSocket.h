@@ -8,6 +8,8 @@
 + (BOOL)caBundleAvailable;
 + (NSInteger)caCertificateCount;
 
+@property (nonatomic) BOOL plain;   // YES = no TLS, raw TCP (for http:// image downloads)
+
 - (BOOL)connectToHost:(NSString *)host port:(int)port verify:(BOOL)verify
      connectTimeoutMs:(int)connectMs readTimeoutMs:(int)readMs error:(NSError **)error;
 - (BOOL)writeData:(NSData *)data error:(NSError **)error;
