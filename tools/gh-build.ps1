@@ -11,7 +11,8 @@ param(
     [string]$IPadHost = '192.168.137.17',
     [string]$OutDir = '',
     [int]$TimeoutSec = 1800,
-    [long]$AfterRunId = 0
+    [long]$AfterRunId = 0,
+    [string]$HeadSha = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -77,7 +78,9 @@ $run = $null
 $deadline = (Get-Date).AddSeconds($TimeoutSec)
 while ($true) {
     $runs = Invoke-GH GET "/actions/runs?branch=$Branch&per_page=5"
-    $run = $runs.workflow_runs | Where-Object { $_.id -gt $AfterRunId } | Sort-Object -Property id -Descending | Select-Object -First 1
+    $candidates = $runs.workflow_runs | Where-Object { $_.id -gt $AfterRunId }
+    if ($HeadSha) { $candidates = $candidates | Where-Object { $_.head_sha -like "$HeadSha*" } }
+    $run = $candidates | Sort-Object -Property id -Descending | Select-Object -First 1
     if ($run) { break }
     if ((Get-Date) -gt $deadline) { throw "No workflow run found" }
     Start-Sleep -Seconds 10

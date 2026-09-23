@@ -144,6 +144,8 @@ static NSString *ORSubscript(NSString *s)
                 NSString *a = [self unicodeForLatex:[self argumentIn:latex from:end end:&end]];
                 NSString *b = [self unicodeForLatex:[self argumentIn:latex from:end end:&end]];
                 BOOL simple = a.length <= 3 && b.length <= 3;
+                // mixed numbers like 2\frac{1}{2} need a space: "2 1/2"
+                if (out.length && [[NSCharacterSet alphanumericCharacterSet] characterIsMember:[out characterAtIndex:out.length - 1]]) [out appendString:@" "];
                 [out appendFormat:simple ? @"%@/%@" : @"(%@)/(%@)", a, b];
                 i = end;
                 continue;

@@ -42,6 +42,7 @@ function Copy-FromIPad {
 function Install-IPadPackage {
     param([string]$IpaPath, [string]$DebPath, [string]$IPadHost = $script:IPadDefaultHost)
     $installed = $false
+    Invoke-IPad -IPadHost $IPadHost -Command 'killall AIChat 2>/dev/null; echo stopped' | Out-Null
     if ($IpaPath -and (Test-Path $IpaPath)) {
         Write-Host "Installing IPA $IpaPath ..."
         Copy-ToIPad -LocalPath $IpaPath -RemotePath '/tmp/aichat.ipa' -IPadHost $IPadHost

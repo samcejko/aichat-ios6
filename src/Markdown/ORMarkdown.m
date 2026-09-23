@@ -352,6 +352,32 @@ static BOOL ORIsMathDelimiter(NSString *trimmed, BOOL *isBracket)
     return NO;
 }
 
+// Fenced code labelled as LaTeX is almost always a formula the model wants shown, not source code.
+static BOOL ORIsMathLanguage(NSString *lang)
+{
+    NSString *l = [[lang lowercaseString] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    return [l isEqualToString:@"latex"] || [l isEqualToString:@"tex"] || [l isEqualToString:@"math"] ||
+           [l isEqualToString:@"katex"] || [l isEqualToString:@"mathjax"];
+}
+
+// \begin{equation} ... \end{equation} and friends written without $$ delimiters.
+static NSString *ORMathEnvironmentName(NSString *trimmed)
+{
+    for (NSString *env in @[ @"equation*", @"equation", @"align*", @"align", @"gather*", @"gather", @"displaymath", @"math" ]) {
+        if ([trimmed hasPrefix:[NSString stringWithFormat:@"\\begin{%@}", env]]) return env;
+    }
+    return nil;
+}
+
+// Strips alignment markers so that iosMath can render multi-line environments as one display block.
+static NSString *ORStripAlignment(NSString *latex)
+{
+    NSString *s = [latex stringByReplacingOccurrencesOfString:@"&" withString:@" "];
+    s = [s stringByReplacingOccurrencesOfString:@"\\\\" withString:@" \\quad "];
+    s = [s stringByReplacingOccurrencesOfString:@"\\nonumber" withString:@""];
+    return s;
+}
+
 + (NSArray *)blocksFromMarkdown:(NSString *)markdown textColor:(UIColor *)textColor inUserBubble:(BOOL)inUser
 {
     NSMutableArray *blocks = [NSMutableArray array];
@@ -418,6 +444,40 @@ static BOOL ORIsMathDelimiter(NSString *trimmed, BOOL *isBracket)
                 if (b.rawText.length) [blocks addObject:b];
                 continue;
             }
+
+            // \begin{equation} ... \end{equation}
+            NSString *env = ORMathEnvironmentName(t);
+            if (env) {
+                flushPara();
+                NSString *endTag = [NSString stringWithFormat:@"\\end{%@}", env];
+                NSMutableArray *math = [NSMutableArray array];
+                NSString *first = [t substringFromIndex:[NSString stringWithFormat:@"\\begin{%@}", env].length];
+                i++;
+                BOOL closed = NO;
+                NSRange endInFirst = [first rangeOfString:endTag];
+                if (endInFirst.location != NSNotFound) {
+                    first = [first substringToIndex:endInFirst.location];
+                    closed = YES;
+                }
+                if (first.length) [math addObject:first];
+                while (!closed && i < n) {
+                    NSString *ml = lines[i];
+                    i++;
+                    NSRange r = [ml rangeOfString:endTag];
+                    if (r.location != NSNotFound) {
+                        NSString *head = [ml substringToIndex:r.location];
+                        if ([head stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]].length) [math addObject:head];
+                        closed = YES;
+                        break;
+                    }
+                    [math addObject:ml];
+                }
+                ORMDBlock *b = [[ORMDBlock alloc] init];
+                b.type = ORMDBlockMath;
+                b.rawText = ORStripAlignment([[math componentsJoinedByString:@" "] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]);
+                if (b.rawText.length) [blocks addObject:b];
+                continue;
+            }
         }
 
         if (ORIsFence(line, &lang)) {
@@ -430,9 +490,28 @@ static BOOL ORIsMathDelimiter(NSString *trimmed, BOOL *isBracket)
             }
             if (i < n) i++;   // closing fence
             ORMDBlock *b = [[ORMDBlock alloc] init];
-            b.type = ORMDBlockCode;
-            b.language = lang;
-            b.rawText = [code componentsJoinedByString:@"\n"];
+            NSString *joined = [code componentsJoinedByString:@"\n"];
+            if (ORIsMathLanguage(lang) && [joined rangeOfString:@"\\documentclass"].location == NSNotFound) {
+                // A LaTeX snippet: render it as a formula (the cell falls back to source if it does not parse).
+                b.type = ORMDBlockMath;
+                NSString *body = [joined stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                if ([body hasPrefix:@"$$"] && [body hasSuffix:@"$$"] && body.length >= 4) body = [body substringWithRange:NSMakeRange(2, body.length - 4)];
+                else if ([body hasPrefix:@"\\["] && [body hasSuffix:@"\\]"] && body.length >= 4) body = [body substringWithRange:NSMakeRange(2, body.length - 4)];
+                else if ([body hasPrefix:@"$"] && [body hasSuffix:@"$"] && body.length >= 2) body = [body substringWithRange:NSMakeRange(1, body.length - 2)];
+                NSString *env = ORMathEnvironmentName(body);
+                if (env) {
+                    NSString *beginTag = [NSString stringWithFormat:@"\\begin{%@}", env];
+                    NSString *endTag = [NSString stringWithFormat:@"\\end{%@}", env];
+                    body = [body stringByReplacingOccurrencesOfString:beginTag withString:@""];
+                    body = [body stringByReplacingOccurrencesOfString:endTag withString:@""];
+                    body = ORStripAlignment(body);
+                }
+                b.rawText = [[body stringByReplacingOccurrencesOfString:@"\n" withString:@" "] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            } else {
+                b.type = ORMDBlockCode;
+                b.language = lang;
+                b.rawText = joined;
+            }
             [blocks addObject:b];
             continue;
         }
