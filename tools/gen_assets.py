@@ -19,11 +19,18 @@ FONT_CANDIDATES = [
 ]
 
 
+_R = getattr(Image, "Resampling", Image)
+LANCZOS, NEAREST = _R.LANCZOS, _R.NEAREST
+
+
 def font(size):
     for path in FONT_CANDIDATES:
         if os.path.exists(path):
             return ImageFont.truetype(path, size)
-    return ImageFont.load_default()
+    try:
+        return ImageFont.load_default(size)  # Pillow >= 10.1
+    except TypeError:
+        sys.exit("gen_assets: no TrueType font found (install fonts-dejavu-core)")
 
 
 def lerp(a, b, t):
@@ -32,13 +39,9 @@ def lerp(a, b, t):
 
 def vertical_gradient(size, top, bottom):
     w, h = size
-    img = Image.new("RGB", size, top)
-    px = img.load()
-    for y in range(h):
-        c = lerp(top, bottom, y / max(1, h - 1))
-        for x in range(w):
-            px[x, y] = c
-    return img
+    col = Image.new("RGB", (1, h))
+    col.putdata([lerp(top, bottom, y / max(1, h - 1)) for y in range(h)])
+    return col.resize((w, h), NEAREST)
 
 
 def text_size(draw, text, fnt):
@@ -62,10 +65,16 @@ def draw_bubble(img, box, fill, tail=True):
         d.polygon([(tx, y1 - r // 2), (tx + tw, y1 - r // 2), (tx, y1 + th)], fill=fill)
 
 
-def make_icon(size):
+_BASE_ICON = None
+
+
+def base_icon():
+    """The 1024 px master icon, drawn once."""
+    global _BASE_ICON
+    if _BASE_ICON is not None:
+        return _BASE_ICON
     base = 1024
     img = vertical_gradient((base, base), (98, 168, 250), (28, 92, 200))
-    d = ImageDraw.Draw(img)
     # subtle gloss on the top half (iOS 6 adds its own shine as well)
     gloss = Image.new("RGBA", (base, base), (0, 0, 0, 0))
     gd = ImageDraw.Draw(gloss)
@@ -81,7 +90,12 @@ def make_icon(size):
     cx = (box[0] + box[2]) // 2
     cy = (box[1] + box[3]) // 2
     d.text((cx - w // 2 - l, cy - h // 2 - t), "AI", font=fnt, fill=(32, 96, 205, 255))
-    return img.convert("RGB").resize((size, size), Image.LANCZOS)
+    _BASE_ICON = img.convert("RGB")
+    return _BASE_ICON
+
+
+def make_icon(size):
+    return base_icon().resize((size, size), LANCZOS)
 
 
 def make_launch(w, h):

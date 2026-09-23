@@ -34,7 +34,7 @@ typedef NS_ENUM(NSInteger, ORModelSort) {
 @property (nonatomic) BOOL darkTheme;
 @property (nonatomic) ORFontSize fontSize;
 @property (nonatomic) NSInteger imageMaxDimension;     // pixels, longest side
-@property (nonatomic, copy) NSString *pdfEngine;       // pdf-text | native | mistral-ocr
+@property (nonatomic, copy) NSString *pdfEngine;       // cloudflare-ai | native | mistral-ocr
 @property (nonatomic) BOOL verifyTLS;
 @property (nonatomic) BOOL pickerFreeOnly;
 @property (nonatomic) BOOL pickerImagesOnly;

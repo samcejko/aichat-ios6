@@ -180,7 +180,9 @@
 {
     NSArray *choices = json[@"choices"];
     if (![choices isKindOfClass:[NSArray class]] || !choices.count) return nil;
-    NSDictionary *msg = choices[0][@"message"];
+    id first = choices[0];
+    if (![first isKindOfClass:[NSDictionary class]]) return nil;
+    NSDictionary *msg = first[@"message"];
     if (![msg isKindOfClass:[NSDictionary class]]) return nil;
     id content = msg[@"content"];
     if ([content isKindOfClass:[NSString class]]) return content;
@@ -297,7 +299,7 @@
     long long total = sys.length;
     for (NSNumber *n in sizes) total += [n longLongValue];
     NSUInteger dropFrom = 0;
-    while (total > budget && dropFrom < built.count - 1) {
+    while (total > budget && built.count > 0 && dropFrom + 1 < built.count) {
         total -= [sizes[dropFrom] longLongValue];
         dropFrom++;
     }
@@ -338,7 +340,9 @@
     self.activeRequest = [[OROpenRouterClient shared] chatCompletionWithBody:body stream:stream onDelta:^(NSDictionary *chunk) {
         NSArray *choices = chunk[@"choices"];
         if (![choices isKindOfClass:[NSArray class]] || !choices.count) return;
-        NSDictionary *delta = choices[0][@"delta"];
+        id first = choices[0];
+        if (![first isKindOfClass:[NSDictionary class]]) return;
+        NSDictionary *delta = first[@"delta"];
         if (![delta isKindOfClass:[NSDictionary class]]) return;
         id content = delta[@"content"];
         id reasoning = delta[@"reasoning"];
@@ -364,8 +368,9 @@
             NSString *text = [self contentStringFromResponse:finalJSON];
             assistant.text = text ?: @"";
             NSArray *choices = finalJSON[@"choices"];
-            if ([choices isKindOfClass:[NSArray class]] && choices.count) {
-                id r = choices[0][@"message"][@"reasoning"];
+            if ([choices isKindOfClass:[NSArray class]] && choices.count && [choices[0] isKindOfClass:[NSDictionary class]]) {
+                NSDictionary *msg = choices[0][@"message"];
+                id r = [msg isKindOfClass:[NSDictionary class]] ? msg[@"reasoning"] : nil;
                 if ([r isKindOfClass:[NSString class]]) assistant.reasoning = r;
             }
         }

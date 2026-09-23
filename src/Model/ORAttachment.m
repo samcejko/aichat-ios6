@@ -48,13 +48,6 @@
     NSString *dest = [ORUtils uniqueAttachmentPathForName:name];
     if (![fm copyItemAtPath:path toPath:dest error:error]) return nil;
     a.storedName = [dest lastPathComponent];
-
-    if (a.kind == ORAttachmentKindImage) {
-        UIImage *img = [ORUtils thumbnailForImageAtPath:dest maxPixels:64];
-        if (!img) {
-            // Not decodable by ImageIO (e.g. webp). Keep it as image anyway, models can read it.
-        }
-    }
     return a;
 }
 
@@ -98,7 +91,7 @@
     a.size = [json[@"size"] unsignedLongLongValue];
     a.pixelWidth = [json[@"w"] integerValue];
     a.pixelHeight = [json[@"h"] integerValue];
-    if (!a.storedName) return nil;
+    if (![a.storedName isKindOfClass:[NSString class]] || a.storedName.length == 0) return nil;
     return a;
 }
 
@@ -137,14 +130,23 @@
     if (self.kind == ORAttachmentKindDocument) {
         text = [ORDocumentConverter markdownForFileAtPath:[self path]];
     } else {
-        NSData *d = [self data];
+        // Read only what can be used, large logs must not be loaded whole on a 512 MB device.
+        NSFileHandle *fh = [NSFileHandle fileHandleForReadingAtPath:[self path]];
+        if (!fh) return nil;
+        NSData *d = maxBytes > 0 ? [fh readDataOfLength:(NSUInteger)maxBytes + 4] : [fh readDataToEndOfFile];
+        [fh closeFile];
         if (!d) return nil;
+        if (maxBytes > 0 && self.size > (unsigned long long)maxBytes && truncated) *truncated = YES;
         text = [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding];
+        for (NSUInteger cut = 1; !text && cut <= 3 && cut < d.length; cut++) {
+            text = [[NSString alloc] initWithData:[d subdataWithRange:NSMakeRange(0, d.length - cut)] encoding:NSUTF8StringEncoding];
+        }
         if (!text) text = [[NSString alloc] initWithData:d encoding:NSISOLatin1StringEncoding];
     }
     if (!text) return nil;
     if (maxBytes > 0 && text.length > (NSUInteger)maxBytes) {
-        text = [text substringToIndex:maxBytes];
+        NSRange r = [text rangeOfComposedCharacterSequenceAtIndex:(NSUInteger)maxBytes];
+        text = [text substringToIndex:r.location];
         if (truncated) *truncated = YES;
     }
     return text;
@@ -168,6 +170,7 @@
 
 - (void)deleteFile
 {
+    if (!self.storedName.length) return;   // never let an empty name resolve to the whole directory
     [[NSFileManager defaultManager] removeItemAtPath:[self path] error:NULL];
 }
 

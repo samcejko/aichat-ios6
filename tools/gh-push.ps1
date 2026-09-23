@@ -23,8 +23,8 @@ $Api = "https://api.github.com/repos/$Repo"
 
 function Invoke-GH {
     param([string]$Method, [string]$Path, $Body)
-    $params = @{ Method = $Method; Uri = "$Api$Path"; Headers = $Headers; ContentType = 'application/json' }
-    if ($null -ne $Body) { $params.Body = ($Body | ConvertTo-Json -Depth 20 -Compress) }
+    $params = @{ Method = $Method; Uri = "$Api$Path"; Headers = $Headers; ContentType = 'application/json; charset=utf-8' }
+    if ($null -ne $Body) { $params.Body = [Text.Encoding]::UTF8.GetBytes(($Body | ConvertTo-Json -Depth 20 -Compress)) }
     # Freshly created fine-grained tokens return sporadic 403s while permissions propagate; retry those.
     $attempt = 0
     while ($true) {
@@ -73,9 +73,20 @@ try {
     $ref = Invoke-GH GET "/git/ref/heads/$Branch"
     $headSha = $ref.object.sha
 } catch {
-    Write-Host "Branch '$Branch' not found; creating initial commit via contents API"
-    $readme = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("# aichat-ios6`n"))
-    Invoke-GH PUT "/contents/README.md" @{ message = 'Initial commit'; content = $readme; branch = $Branch } | Out-Null
+    $status = 0
+    try { $status = [int]$_.Exception.Response.StatusCode } catch {}
+    if ($status -eq 409) {
+        Write-Host "Repository is empty; creating the initial commit via the contents API"
+        $readme = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("# aichat-ios6`n"))
+        Invoke-GH PUT "/contents/README.md" @{ message = 'Initial commit'; content = $readme; branch = $Branch } | Out-Null
+    } elseif ($status -eq 404) {
+        Write-Host "Branch '$Branch' does not exist; creating it from the default branch"
+        $def = (Invoke-GH GET "").default_branch
+        $dref = Invoke-GH GET "/git/ref/heads/$def"
+        Invoke-GH POST "/git/refs" @{ ref = "refs/heads/$Branch"; sha = $dref.object.sha } | Out-Null
+    } else {
+        throw
+    }
     $ref = Invoke-GH GET "/git/ref/heads/$Branch"
     $headSha = $ref.object.sha
 }

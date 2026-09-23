@@ -38,9 +38,14 @@ static NSArray *ORStringArray(id v)
     m.created = [ORStr(json[@"created"]) doubleValue];
 
     NSDictionary *pricing = [json[@"pricing"] isKindOfClass:[NSDictionary class]] ? json[@"pricing"] : @{};
-    m.promptPrice = ORStr(pricing[@"prompt"]) ?: @"0";
-    m.completionPrice = ORStr(pricing[@"completion"]) ?: @"0";
-    m.imagePrice = ORStr(pricing[@"image"]);
+    NSString *(^price)(id) = ^NSString *(id v) {
+        NSString *s = ORStr(v);
+        return s.length ? s : nil;
+    };
+    m.promptPrice = price(pricing[@"prompt"]);
+    m.completionPrice = price(pricing[@"completion"]);
+    m.imagePrice = price(pricing[@"image"]);
+    m.requestPrice = price(pricing[@"request"]);
 
     NSDictionary *arch = [json[@"architecture"] isKindOfClass:[NSDictionary class]] ? json[@"architecture"] : @{};
     m.inputModalities = ORStringArray(arch[@"input_modalities"]);
@@ -71,7 +76,7 @@ static NSArray *ORStringArray(id v)
         @"description": [ORUtils truncate:self.modelDescription ?: @"" to:400],
         @"context_length": @(self.contextLength),
         @"created": @(self.created),
-        @"pricing": @{ @"prompt": self.promptPrice ?: @"0", @"completion": self.completionPrice ?: @"0", @"image": self.imagePrice ?: @"" },
+        @"pricing": @{ @"prompt": self.promptPrice ?: @"", @"completion": self.completionPrice ?: @"", @"image": self.imagePrice ?: @"", @"request": self.requestPrice ?: @"" },
         @"architecture": @{ @"input_modalities": self.inputModalities ?: @[], @"output_modalities": self.outputModalities ?: @[] },
         @"top_provider": @{ @"max_completion_tokens": @(self.maxCompletionTokens) },
         @"supported_parameters": self.supportedParameters ?: @[],
@@ -82,13 +87,16 @@ static NSArray *ORStringArray(id v)
 {
     if ([self.modelId hasSuffix:@":free"]) return YES;
     if ([self.modelId isEqualToString:@"openrouter/free"]) return YES;
-    if ([self.promptPrice doubleValue] == 0 && [self.completionPrice doubleValue] == 0 && [self supportsTextOutput]) return YES;
-    return NO;
+    if (!self.promptPrice || !self.completionPrice) return NO;          // unknown pricing is not "free"
+    if ([self.promptPrice doubleValue] != 0 || [self.completionPrice doubleValue] != 0) return NO;
+    if (self.requestPrice && [self.requestPrice doubleValue] != 0) return NO;
+    if (self.imagePrice && [self.imagePrice doubleValue] != 0 && [self supportsImages]) return NO;
+    return [self supportsTextOutput];
 }
 
 - (BOOL)isRouter
 {
-    return [self.promptPrice doubleValue] < 0 || [self.modelId hasPrefix:@"openrouter/"];
+    return (self.promptPrice && [self.promptPrice doubleValue] < 0) || [self.modelId hasPrefix:@"openrouter/"];
 }
 
 - (BOOL)supportsImages { return [self.inputModalities containsObject:@"image"]; }
@@ -104,7 +112,7 @@ static NSArray *ORStringArray(id v)
 - (NSString *)priceLine
 {
     if ([self isFree]) return L(@"Free");
-    if ([self.promptPrice doubleValue] < 0) return L(@"Variable price");
+    if (!self.promptPrice || [self.promptPrice doubleValue] < 0) return L(@"Variable price");
     return [NSString stringWithFormat:@"%@ / %@ %@", [ORUtils formatPricePerMillion:self.promptPrice],
             [ORUtils formatPricePerMillion:self.completionPrice], L(@"per 1M tokens")];
 }

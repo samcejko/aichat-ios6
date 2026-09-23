@@ -700,9 +700,8 @@ static NSString * const kCellId = @"msg";
 - (void)attachIncomingAttachment:(id)attachment
 {
     if (![attachment isKindOfClass:[ORAttachment class]]) return;
-    if (self.presentedViewController) {
-        [self dismissViewControllerAnimated:NO completion:nil];
-    }
+    [self view];   // make sure the composer exists even when we are launched by "Open in…"
+    [self dismissAuxiliaryAnimated:NO completion:nil];
     [self addPendingAttachment:attachment];
 }
 

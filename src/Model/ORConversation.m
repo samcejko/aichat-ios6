@@ -27,7 +27,9 @@
     c.messages = [NSMutableArray array];
     for (id m in (json[@"messages"] ?: @[])) {
         ORMessage *msg = [ORMessage messageFromJSON:m];
-        if (msg) [c.messages addObject:msg];
+        if (!msg) continue;
+        if (msg.role == ORMessageRoleAssistant && msg.text.length == 0) continue;
+        [c.messages addObject:msg];
     }
     return c;
 }
@@ -35,7 +37,11 @@
 - (NSDictionary *)toJSON
 {
     NSMutableArray *msgs = [NSMutableArray arrayWithCapacity:self.messages.count];
-    for (ORMessage *m in self.messages) [msgs addObject:[m toJSON]];
+    for (ORMessage *m in self.messages) {
+        // Never persist the streaming placeholder (empty assistant bubble).
+        if (m.role == ORMessageRoleAssistant && m.text.length == 0) continue;
+        [msgs addObject:[m toJSON]];
+    }
     NSMutableDictionary *d = [NSMutableDictionary dictionary];
     d[@"id"] = self.conversationId ?: @"";
     if (self.title) d[@"title"] = self.title;

@@ -31,6 +31,7 @@ static const CGFloat kCodePad = 7.0;
 @interface ORMessageLayout : NSObject
 @property (nonatomic) CGFloat width;
 @property (nonatomic) NSUInteger textLength;
+@property (nonatomic) NSUInteger noteLength;
 @property (nonatomic) BOOL noteExpanded;
 @property (nonatomic) BOOL streaming;
 @property (nonatomic, copy) NSString *statusText;
@@ -134,21 +135,24 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     NSString *key = m.messageId ?: @"";
     ORMessageLayout *cached = g_layoutCache[key];
     if (cached && cached.width == width && cached.textLength == m.text.length && cached.noteExpanded == m.visionNoteExpanded &&
+        cached.noteLength == m.visionNote.length &&
         cached.streaming == m.isStreaming && ((cached.statusText == nil && m.statusText == nil) || [cached.statusText isEqualToString:m.statusText]) &&
         !(m.isStreaming && cached.textLength == 0)) {
         return cached;
     }
+    if (g_layoutCache.count > 400) [g_layoutCache removeAllObjects];
 
     ORTheme *theme = [ORTheme shared];
     ORSettings *settings = [ORSettings shared];
     BOOL isUser = m.role == ORMessageRoleUser;
     BOOL isError = m.role == ORMessageRoleError;
-    ORMessageLayout *L = [[ORMessageLayout alloc] init];
-    L.width = width;
-    L.textLength = m.text.length;
-    L.noteExpanded = m.visionNoteExpanded;
-    L.streaming = m.isStreaming;
-    L.statusText = m.statusText;
+    ORMessageLayout *layout = [[ORMessageLayout alloc] init];
+    layout.width = width;
+    layout.textLength = m.text.length;
+    layout.noteLength = m.visionNote.length;
+    layout.noteExpanded = m.visionNoteExpanded;
+    layout.streaming = m.isStreaming;
+    layout.statusText = m.statusText;
 
     CGFloat bubbleMax = [self bubbleMaxWidthForWidth:width];
     CGFloat contentMax = bubbleMax - 2 * kBubblePadH;
@@ -178,14 +182,14 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         y += rowH;
         if (m.text.length) y += kBlockSpacing;
     }
-    L.attachmentFrames = attFrames;
+    layout.attachmentFrames = attFrames;
 
     // Status (streaming, no text yet)
     if (m.isStreaming && m.text.length == 0) {
         NSString *status = m.statusText ?: L(@"Thinking…");
         NSAttributedString *st = [ORMarkdown plainAttributedString:status color:[theme secondaryTextColor] font:[theme messageFont]];
         CGSize sz = ORMeasure(st, contentMax - 26);
-        L.statusFrame = CGRectMake(0, y, sz.width + 26, MAX(sz.height, 20));
+        layout.statusFrame = CGRectMake(0, y, sz.width + 26, MAX(sz.height, 20));
         maxBlockWidth = MAX(maxBlockWidth, sz.width + 26);
         y += MAX(sz.height, 20);
     }
@@ -243,17 +247,17 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         y += size.height;
         prevType = b.type;
     }
-    L.blockFrames = frames;
+    layout.blockFrames = frames;
 
     CGFloat contentHeight = y;
     CGFloat bubbleWidth = MIN(bubbleMax, MAX(maxBlockWidth, 24) + 2 * kBubblePadH);
     CGFloat bubbleHeight = contentHeight + 2 * kBubblePadV;
     CGFloat bubbleX = isUser ? width - kSideMargin - bubbleWidth : kSideMargin;
-    L.bubbleFrame = CGRectMake(bubbleX, kCellPadV, bubbleWidth, bubbleHeight);
+    layout.bubbleFrame = CGRectMake(bubbleX, kCellPadV, bubbleWidth, bubbleHeight);
     CGFloat cy = kCellPadV + bubbleHeight;
 
     // Meta line (assistant usage / model)
-    L.metaText = nil;
+    layout.metaText = nil;
     if (m.role == ORMessageRoleAssistant && !m.isStreaming) {
         NSMutableArray *parts = [NSMutableArray array];
         if (m.modelId) {
@@ -265,8 +269,8 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
             if (m.cost > 0) [parts addObject:[NSString stringWithFormat:@"$%.4f", m.cost]];
         }
         if (parts.count) {
-            L.metaText = [parts componentsJoinedByString:@" · "];
-            L.metaFrame = CGRectMake(bubbleX + 4, cy + 2, bubbleMax, kMetaHeight);
+            layout.metaText = [parts componentsJoinedByString:@" · "];
+            layout.metaFrame = CGRectMake(bubbleX + 4, cy + 2, bubbleMax, kMetaHeight);
             cy += kMetaHeight + 2;
         }
     }
@@ -283,7 +287,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         NSMutableAttributedString *att = [[NSMutableAttributedString alloc] initWithString:full attributes:@{
             NSFontAttributeName: [theme smallFont], NSForegroundColorAttributeName: [theme secondaryTextColor] }];
         [att addAttribute:NSFontAttributeName value:[UIFont boldSystemFontOfSize:11] range:NSMakeRange(0, header.length)];
-        L.noteText = att;
+        layout.noteText = att;
         CGFloat noteW = bubbleMax;
         CGFloat h;
         if (m.visionNoteExpanded) {
@@ -291,14 +295,13 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         } else {
             h = kNoteCollapsedHeight;
         }
-        L.noteFrame = CGRectMake(width - kSideMargin - noteW, cy + 3, noteW, h);
+        layout.noteFrame = CGRectMake(width - kSideMargin - noteW, cy + 3, noteW, h);
         cy += h + 3;
     }
 
-    L.totalHeight = cy + kCellPadV;
-    g_layoutCache[key] = L;
-    if (g_layoutCache.count > 400) [g_layoutCache removeAllObjects];
-    return L;
+    layout.totalHeight = cy + kCellPadV;
+    g_layoutCache[key] = layout;
+    return layout;
 }
 
 + (CGFloat)heightForMessage:(ORMessage *)message width:(CGFloat)width
@@ -362,23 +365,23 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
 - (void)configureWithMessage:(ORMessage *)message width:(CGFloat)width
 {
     self.message = message;
-    ORMessageLayout *L = [ORMessageCell layoutForMessage:message width:width];
-    self.layout = L;
+    ORMessageLayout *layout = [ORMessageCell layoutForMessage:message width:width];
+    self.layout = layout;
     ORTheme *theme = [ORTheme shared];
     BOOL isUser = message.role == ORMessageRoleUser;
     BOOL isError = message.role == ORMessageRoleError;
     UIColor *textColor = isUser ? [theme userBubbleTextColor] : (isError ? [theme errorTextColor] : [theme assistantBubbleTextColor]);
 
     self.bubbleView.image = isUser ? [theme userBubbleImage] : (isError ? [theme errorBubbleImage] : [theme assistantBubbleImage]);
-    self.bubbleView.frame = L.bubbleFrame;
+    self.bubbleView.frame = layout.bubbleFrame;
 
     // Attachments
     for (UIView *v in self.attachmentViews) [v removeFromSuperview];
     [self.attachmentViews removeAllObjects];
     NSUInteger ai = 0;
     for (ORAttachment *a in message.attachments) {
-        if (ai >= L.attachmentFrames.count) break;
-        CGRect f = [L.attachmentFrames[ai] CGRectValue];
+        if (ai >= layout.attachmentFrames.count) break;
+        CGRect f = [layout.attachmentFrames[ai] CGRectValue];
         f.origin.x += kBubblePadH;
         f.origin.y += kBubblePadV;
         UIView *v;
@@ -420,7 +423,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
 
     // Status
     if (message.isStreaming && message.text.length == 0) {
-        CGRect sf = L.statusFrame;
+        CGRect sf = layout.statusFrame;
         sf.origin.x += kBubblePadH;
         sf.origin.y += kBubblePadV;
         self.spinner.frame = CGRectMake(sf.origin.x, sf.origin.y + (sf.size.height - 20) / 2, 20, 20);
@@ -439,7 +442,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     // Blocks
     for (UIView *v in self.blockViews) [v removeFromSuperview];
     [self.blockViews removeAllObjects];
-    for (ORBlockFrame *bf in L.blockFrames) {
+    for (ORBlockFrame *bf in layout.blockFrames) {
         CGRect f = bf.frame;
         f.origin.x += kBubblePadH;
         f.origin.y += kBubblePadV;
@@ -487,10 +490,10 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     }
 
     // Meta
-    if (L.metaText) {
+    if (layout.metaText) {
         self.metaLabel.hidden = NO;
-        self.metaLabel.frame = L.metaFrame;
-        self.metaLabel.text = L.metaText;
+        self.metaLabel.frame = layout.metaFrame;
+        self.metaLabel.text = layout.metaText;
         self.metaLabel.textColor = [theme secondaryTextColor];
         self.metaLabel.font = [theme smallFont];
     } else {
@@ -498,12 +501,12 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     }
 
     // Vision note
-    if (L.noteText) {
+    if (layout.noteText) {
         self.noteView.hidden = NO;
-        self.noteView.frame = L.noteFrame;
+        self.noteView.frame = layout.noteFrame;
         self.noteView.backgroundColor = [theme noteBackgroundColor];
         self.noteLabel.frame = CGRectInset(self.noteView.bounds, 8, 6);
-        self.noteLabel.attributedText = L.noteText;
+        self.noteLabel.attributedText = layout.noteText;
         self.noteLabel.lineBreakMode = message.visionNoteExpanded ? NSLineBreakByWordWrapping : NSLineBreakByTruncatingTail;
         self.noteLabel.numberOfLines = message.visionNoteExpanded ? 0 : 2;
     } else {

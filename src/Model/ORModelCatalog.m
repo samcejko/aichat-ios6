@@ -181,7 +181,8 @@ static const NSTimeInterval kStaleInterval = 12 * 60 * 60;
     NSArray *freeVision = [self filteredModelsFreeOnly:YES imagesOnly:YES query:nil sort:ORModelSortContext];
     for (NSString *prefix in preferred) {
         for (ORModelInfo *m in freeVision) {
-            if ([m.modelId hasPrefix:prefix] && ![m isRouter]) return m;
+            BOOL routerOk = [m.modelId isEqualToString:@"openrouter/free"];
+            if ([m.modelId hasPrefix:prefix] && (![m isRouter] || routerOk)) return m;
         }
     }
     for (ORModelInfo *m in freeVision) if (![m isRouter]) return m;

@@ -94,6 +94,7 @@ static const char kBase64Table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr
     NSString *mime = [self mimeTable][ext];
     if (mime) return mime;
     if ([[self textExtensions] containsObject:ext]) return @"text/plain";
+    if ([self isTextPath:path]) return @"text/plain";
     return @"application/octet-stream";
 }
 
@@ -125,12 +126,11 @@ static const char kBase64Table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr
     for (NSUInteger i = 0; i < check; i++) {
         if (b[i] == 0) return NO;
     }
-    NSString *s = [[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(0, check)] encoding:NSUTF8StringEncoding];
-    if (s) return YES;
-    // A cut in the middle of a multibyte sequence can make the sample invalid; retry a bit shorter.
-    if (check > 8) {
-        s = [[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(0, check - 4)] encoding:NSUTF8StringEncoding];
+    // A cut in the middle of a multibyte sequence can make the sample invalid; retry up to 3 bytes shorter.
+    for (NSUInteger cut = 0; cut <= 3 && cut < check; cut++) {
+        NSString *s = [[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(0, check - cut)] encoding:NSUTF8StringEncoding];
         if (s) return YES;
+        if (check == data.length) break;   // whole file was tested, nothing was cut
     }
     return NO;
 }

@@ -12,23 +12,31 @@ function Get-IPadSshArgs {
     @('-i', $script:IPadKey, '-oHostKeyAlgorithms=+ssh-rsa', '-oStrictHostKeyChecking=accept-new', '-oConnectTimeout=10', '-oBatchMode=yes', '-oLogLevel=ERROR')
 }
 
+# Runs a command on the iPad and returns stdout+stderr as plain strings (never throws on stderr output).
 function Invoke-IPad {
     param([Parameter(Mandatory = $true)][string]$Command, [string]$IPadHost = $script:IPadDefaultHost)
+    $ErrorActionPreference = 'Continue'   # function-local: native stderr must not become a terminating error
     $sshArgs = Get-IPadSshArgs
-    & ssh.exe @sshArgs "root@$IPadHost" $Command
+    & ssh.exe @sshArgs "root@$IPadHost" $Command 2>&1 |
+        ForEach-Object { if ($_ -is [Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_ } }
 }
 
 function Copy-ToIPad {
     param([Parameter(Mandatory = $true)][string]$LocalPath, [Parameter(Mandatory = $true)][string]$RemotePath, [string]$IPadHost = $script:IPadDefaultHost)
+    $ErrorActionPreference = 'Continue'
     $sshArgs = Get-IPadSshArgs
-    & scp.exe @sshArgs $LocalPath "root@${IPadHost}:$RemotePath"
+    & scp.exe -O @sshArgs $LocalPath "root@${IPadHost}:$RemotePath" 2>&1 |
+        ForEach-Object { if ($_ -is [Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_ } }
     if ($LASTEXITCODE -ne 0) { throw "scp failed for $LocalPath" }
 }
 
 function Copy-FromIPad {
     param([Parameter(Mandatory = $true)][string]$RemotePath, [Parameter(Mandatory = $true)][string]$LocalPath, [string]$IPadHost = $script:IPadDefaultHost)
+    $ErrorActionPreference = 'Continue'
     $sshArgs = Get-IPadSshArgs
-    & scp.exe @sshArgs -r "root@${IPadHost}:$RemotePath" $LocalPath
+    & scp.exe -O @sshArgs -r "root@${IPadHost}:$RemotePath" $LocalPath 2>&1 |
+        ForEach-Object { if ($_ -is [Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_ } }
+    if ($LASTEXITCODE -ne 0) { throw "scp failed for $RemotePath" }
 }
 
 function Install-IPadPackage {
@@ -37,16 +45,16 @@ function Install-IPadPackage {
     if ($IpaPath -and (Test-Path $IpaPath)) {
         Write-Host "Installing IPA $IpaPath ..."
         Copy-ToIPad -LocalPath $IpaPath -RemotePath '/tmp/aichat.ipa' -IPadHost $IPadHost
-        $out = Invoke-IPad -IPadHost $IPadHost -Command 'if command -v ipainstaller >/dev/null 2>&1; then ipainstaller -f /tmp/aichat.ipa && echo IPA_OK; elif command -v appinst >/dev/null 2>&1; then appinst /tmp/aichat.ipa && echo IPA_OK; else echo NO_INSTALLER; fi' 2>&1 | Out-String
+        $out = Invoke-IPad -IPadHost $IPadHost -Command 'if command -v ipainstaller >/dev/null 2>&1; then ipainstaller -f /tmp/aichat.ipa && echo IPA_OK; elif command -v appinst >/dev/null 2>&1; then appinst /tmp/aichat.ipa && echo IPA_OK; else echo NO_INSTALLER; fi' | Out-String
         Write-Host $out
         if ($out -match 'IPA_OK') { $installed = $true }
     }
     if (-not $installed -and $DebPath -and (Test-Path $DebPath)) {
         Write-Host "Installing DEB $DebPath (falls back to /Applications) ..."
         Copy-ToIPad -LocalPath $DebPath -RemotePath '/tmp/aichat.deb' -IPadHost $IPadHost
-        $out = Invoke-IPad -IPadHost $IPadHost -Command 'dpkg -i /tmp/aichat.deb 2>&1; uicache 2>/dev/null; echo DEB_DONE' 2>&1 | Out-String
+        $out = Invoke-IPad -IPadHost $IPadHost -Command 'dpkg -i /tmp/aichat.deb 2>&1 && { uicache 2>/dev/null; echo DEB_OK; }' | Out-String
         Write-Host $out
-        if ($out -match 'DEB_DONE') { $installed = $true }
+        if ($out -match 'DEB_OK') { $installed = $true }
     }
     if (-not $installed) { throw "Nothing installed" }
     Write-Host "Done. Tap the AI Chat icon on the iPad."
@@ -57,7 +65,7 @@ function Get-IPadCrashLogs {
     if (-not $OutDir) { $OutDir = Join-Path (Get-Location) 'packages\crashlogs' }
     New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
     $list = Invoke-IPad -IPadHost $IPadHost -Command 'ls -t /var/mobile/Library/Logs/CrashReporter/ 2>/dev/null | grep -i aichat | head -n 5'
-    foreach ($f in ($list -split "`n" | Where-Object { $_.Trim() })) {
+    foreach ($f in (@($list) -join "`n" -split "`n" | Where-Object { $_.Trim() })) {
         $name = $f.Trim()
         Copy-FromIPad -IPadHost $IPadHost -RemotePath "/var/mobile/Library/Logs/CrashReporter/$name" -LocalPath (Join-Path $OutDir $name)
         Write-Host "Fetched $name"

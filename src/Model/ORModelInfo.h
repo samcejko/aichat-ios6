@@ -6,9 +6,10 @@
 @property (nonatomic, copy) NSString *modelId;
 @property (nonatomic, copy) NSString *name;
 @property (nonatomic, copy) NSString *modelDescription;
-@property (nonatomic, copy) NSString *promptPrice;       // USD per token, as string ("0", "-1", "0.0000025")
+@property (nonatomic, copy) NSString *promptPrice;       // USD per token, as string ("0", "-1", "0.0000025"); nil when unknown
 @property (nonatomic, copy) NSString *completionPrice;
 @property (nonatomic, copy) NSString *imagePrice;
+@property (nonatomic, copy) NSString *requestPrice;
 @property (nonatomic) NSInteger contextLength;
 @property (nonatomic) NSInteger maxCompletionTokens;
 @property (nonatomic) NSTimeInterval created;

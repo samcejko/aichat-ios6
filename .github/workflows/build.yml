@@ -21,9 +21,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential fakeroot rsync curl perl zip unzip git libxml2 xz-utils python3-pil libtinfo5 || \
+            build-essential fakeroot rsync curl perl zip unzip git libxml2 xz-utils python3-pil fonts-dejavu-core libtinfo5 || \
           sudo apt-get install -y --no-install-recommends \
-            build-essential fakeroot rsync curl perl zip unzip git libxml2 xz-utils python3-pil
+            build-essential fakeroot rsync curl perl zip unzip git libxml2 xz-utils python3-pil fonts-dejavu-core
 
       - name: Restore Theos cache
         id: theos-cache
@@ -90,6 +90,24 @@ jobs:
 
       - name: Generate icons and launch images
         run: python3 tools/gen_assets.py Resources
+
+      - name: Patch SDK (stub re-exported libraries missing from theos/sdks)
+        run: |
+          set -e
+          SDK="$THEOS/sdks/iPhoneOS9.3.sdk"
+          LIBSYS="$SDK/usr/lib/libSystem.tbd"
+          test -f "$LIBSYS"
+          # libSystem.tbd re-exports /usr/lib/system/*.dylib; the packaged SDK lacks a few of those stubs
+          # (e.g. liblaunch), which makes ld64 fail with "file not found". Create empty TBD stubs.
+          for lib in $(grep -o "/usr/lib/system/lib[A-Za-z0-9_]*\.dylib" "$LIBSYS" | sort -u); do
+            base="${lib%.dylib}"
+            if [ ! -f "$SDK$base.tbd" ] && [ ! -f "$SDK$lib" ]; then
+              mkdir -p "$(dirname "$SDK$base.tbd")"
+              printf -- '---\narchs:           [ armv7, armv7s, arm64 ]\nplatform:        ios\ninstall-name:    %s\ncurrent-version: 1.0\ncompatibility-version: 1.0\nexports:\n  - archs:           [ armv7, armv7s, arm64 ]\n    symbols:         [ ]\n...\n' "$lib" > "$SDK$base.tbd"
+              echo "stubbed $lib"
+            fi
+          done
+          ls "$SDK/usr/lib/system" | head -n 60
 
       - name: Build
         run: |

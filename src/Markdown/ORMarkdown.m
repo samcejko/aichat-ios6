@@ -22,11 +22,16 @@
     return [t messageFont];
 }
 
+- (UIColor *)safeColor
+{
+    return self.textColor ?: [[ORTheme shared] primaryTextColor];
+}
+
 - (NSDictionary *)attributesBold:(BOOL)bold italic:(BOOL)italic strike:(BOOL)strike
 {
     NSMutableDictionary *a = [NSMutableDictionary dictionary];
     a[NSFontAttributeName] = [self fontBold:bold italic:italic];
-    a[NSForegroundColorAttributeName] = self.textColor;
+    a[NSForegroundColorAttributeName] = [self safeColor];
     if (self.paragraphStyle) a[NSParagraphStyleAttributeName] = self.paragraphStyle;
     if (strike) a[NSStrikethroughStyleAttributeName] = @(NSUnderlineStyleSingle);
     return a;
@@ -36,7 +41,7 @@
 {
     NSMutableDictionary *a = [NSMutableDictionary dictionary];
     a[NSFontAttributeName] = [[ORTheme shared] codeFont];
-    a[NSForegroundColorAttributeName] = self.textColor;
+    a[NSForegroundColorAttributeName] = [self safeColor];
     a[NSBackgroundColorAttributeName] = [[ORTheme shared] codeBackgroundColorInUserBubble:self.inUser];
     if (self.paragraphStyle) a[NSParagraphStyleAttributeName] = self.paragraphStyle;
     return a;
@@ -45,7 +50,7 @@
 - (NSDictionary *)linkAttributesBold:(BOOL)bold italic:(BOOL)italic
 {
     NSMutableDictionary *a = [[self attributesBold:bold italic:italic strike:NO] mutableCopy];
-    a[NSForegroundColorAttributeName] = self.inUser ? self.textColor : [[ORTheme shared] linkColor];
+    a[NSForegroundColorAttributeName] = self.inUser ? [self safeColor] : [[ORTheme shared] linkColor];
     a[NSUnderlineStyleAttributeName] = @(NSUnderlineStyleSingle);
     return a;
 }
@@ -64,11 +69,15 @@ static BOOL ORIsWordChar(unichar c)
 static BOOL ORHasCloser(NSString *s, NSString *delim, NSUInteger from)
 {
     NSUInteger len = s.length;
-    NSUInteger dl = delim.length;
-    for (NSUInteger i = from; i + dl <= len; i++) {
-        if ([[s substringWithRange:NSMakeRange(i, dl)] isEqualToString:delim]) {
-            if (i > 0 && !ORIsSpace([s characterAtIndex:i - 1])) return YES;
-        }
+    if (from >= len) return NO;
+    NSRange r = NSMakeRange(from, len - from);
+    while (r.length > 0) {
+        NSRange f = [s rangeOfString:delim options:NSLiteralSearch range:r];
+        if (f.location == NSNotFound) return NO;
+        if (f.location > 0 && !ORIsSpace([s characterAtIndex:f.location - 1])) return YES;
+        NSUInteger next = f.location + f.length;
+        if (next >= len) return NO;
+        r = NSMakeRange(next, len - next);
     }
     return NO;
 }
@@ -79,6 +88,7 @@ static BOOL ORHasCloser(NSString *s, NSString *delim, NSUInteger from)
     NSUInteger len = s.length;
     NSUInteger i = 0;
     __block BOOL bold = NO, italic = NO, strike = NO;
+    unichar boldOpen = 0, italicOpen = 0;
     NSMutableString *run = [NSMutableString string];
 
     void (^flush)(void) = ^{
@@ -125,10 +135,10 @@ static BOOL ORHasCloser(NSString *s, NSString *delim, NSUInteger from)
             NSString *delim = [NSString stringWithFormat:@"%C%C", c, c];
             if (bold) {
                 BOOL prevOk = i > 0 && !ORIsSpace([s characterAtIndex:i - 1]);
-                if (prevOk) { flush(); bold = NO; i += 2; continue; }
+                if (prevOk && c == boldOpen) { flush(); bold = NO; i += 2; continue; }
             } else {
                 BOOL nextOk = i + 2 < len && !ORIsSpace([s characterAtIndex:i + 2]);
-                if (nextOk && ORHasCloser(s, delim, i + 2)) { flush(); bold = YES; i += 2; continue; }
+                if (nextOk && ORHasCloser(s, delim, i + 2)) { flush(); bold = YES; boldOpen = c; i += 2; continue; }
             }
             [run appendString:delim];
             i += 2;
@@ -142,10 +152,10 @@ static BOOL ORHasCloser(NSString *s, NSString *delim, NSUInteger from)
                 NSString *delim = [NSString stringWithFormat:@"%C", c];
                 if (italic) {
                     BOOL prevOk = i > 0 && !ORIsSpace([s characterAtIndex:i - 1]);
-                    if (prevOk) { flush(); italic = NO; i += 1; continue; }
+                    if (prevOk && c == italicOpen) { flush(); italic = NO; i += 1; continue; }
                 } else {
                     BOOL nextOk = i + 1 < len && !ORIsSpace([s characterAtIndex:i + 1]);
-                    if (nextOk && ORHasCloser(s, delim, i + 1)) { flush(); italic = YES; i += 1; continue; }
+                    if (nextOk && ORHasCloser(s, delim, i + 1)) { flush(); italic = YES; italicOpen = c; i += 1; continue; }
                 }
             }
             [run appendFormat:@"%C", c];
@@ -166,19 +176,23 @@ static BOOL ORHasCloser(NSString *s, NSString *delim, NSUInteger from)
         if ((c == '[' || (c == '!' && i + 1 < len && [s characterAtIndex:i + 1] == '[')) ) {
             BOOL isImage = (c == '!');
             NSUInteger open = isImage ? i + 1 : i;
-            NSRange closeBracket = [s rangeOfString:@"](" options:0 range:NSMakeRange(open, len - open)];
-            if (closeBracket.location != NSNotFound) {
-                NSRange closeParen = [s rangeOfString:@")" options:0 range:NSMakeRange(closeBracket.location + 2, len - closeBracket.location - 2)];
+            NSRange rb = (open + 1 < len) ? [s rangeOfString:@"]" options:NSLiteralSearch range:NSMakeRange(open + 1, len - open - 1)] : NSMakeRange(NSNotFound, 0);
+            if (rb.location != NSNotFound && rb.location + 1 < len && [s characterAtIndex:rb.location + 1] == '(') {
+                NSRange closeParen = [s rangeOfString:@")" options:NSLiteralSearch range:NSMakeRange(rb.location + 2, len - rb.location - 2)];
                 if (closeParen.location != NSNotFound) {
-                    NSString *label = [s substringWithRange:NSMakeRange(open + 1, closeBracket.location - open - 1)];
-                    NSString *url = [s substringWithRange:NSMakeRange(closeBracket.location + 2, closeParen.location - closeBracket.location - 2)];
+                    NSString *label = [s substringWithRange:NSMakeRange(open + 1, rb.location - open - 1)];
+                    NSString *url = [s substringWithRange:NSMakeRange(rb.location + 2, closeParen.location - rb.location - 2)];
                     if ([label rangeOfString:@"\n"].location == NSNotFound && label.length < 400) {
                         flush();
                         if (isImage) {
                             NSString *t = [NSString stringWithFormat:@"[image: %@]", label.length ? label : url];
                             [out appendAttributedString:[[NSAttributedString alloc] initWithString:t attributes:[self attributesBold:NO italic:YES strike:NO]]];
                         } else {
-                            NSMutableAttributedString *inner = [[[ORInlineParser alloc] init] parse:label];
+                            ORInlineParser *sub = [[ORInlineParser alloc] init];
+                            sub.textColor = self.textColor;
+                            sub.inUser = self.inUser;
+                            sub.paragraphStyle = self.paragraphStyle;
+                            NSMutableAttributedString *inner = [sub parse:label];
                             [inner setAttributes:[self linkAttributesBold:bold italic:italic] range:NSMakeRange(0, inner.length)];
                             [out appendAttributedString:inner];
                             if (![label isEqualToString:url] && ![url hasPrefix:@"#"]) {
@@ -207,7 +221,10 @@ static BOOL ORHasCloser(NSString *s, NSString *delim, NSUInteger from)
 
 + (NSAttributedString *)plainAttributedString:(NSString *)text color:(UIColor *)color font:(UIFont *)font
 {
-    return [[NSAttributedString alloc] initWithString:text ?: @"" attributes:@{ NSFontAttributeName: font, NSForegroundColorAttributeName: color }];
+    ORTheme *theme = [ORTheme shared];
+    return [[NSAttributedString alloc] initWithString:text ?: @"" attributes:@{
+        NSFontAttributeName: font ?: [theme messageFont],
+        NSForegroundColorAttributeName: color ?: [theme primaryTextColor] }];
 }
 
 static NSString *ORTrimRight(NSString *s)
@@ -232,13 +249,17 @@ static NSUInteger ORLeadingSpaces(NSString *line)
 static BOOL ORIsFence(NSString *line, NSString **lang)
 {
     NSString *t = [line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-    if ([t hasPrefix:@"```"] || [t hasPrefix:@"~~~"]) {
-        NSString *rest = [[t substringFromIndex:3] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-        rest = [rest stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"`~"]];
-        if (lang) *lang = rest;
-        return YES;
-    }
-    return NO;
+    if (t.length < 3) return NO;
+    unichar f = [t characterAtIndex:0];
+    if (f != '`' && f != '~') return NO;
+    NSUInteger n = 0;
+    while (n < t.length && [t characterAtIndex:n] == f) n++;
+    if (n < 3) return NO;
+    NSString *info = [[t substringFromIndex:n] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    // ```inline code``` on one line is a code span, not a fence
+    if (f == '`' && [info rangeOfString:@"`"].location != NSNotFound) return NO;
+    if (lang) *lang = info;
+    return YES;
 }
 
 static BOOL ORIsRule(NSString *line)
@@ -300,6 +321,7 @@ static BOOL ORParseListItem(NSString *line, NSString **marker, NSString **conten
     ORTheme *theme = [ORTheme shared];
 
     ORInlineParser *inlineParser = [[ORInlineParser alloc] init];
+    if (!textColor) textColor = [theme primaryTextColor];
     inlineParser.textColor = textColor;
     inlineParser.inUser = inUser;
 
@@ -454,7 +476,7 @@ static BOOL ORParseListItem(NSString *line, NSString **marker, NSString **conten
             ps.headIndent = base + markerWidth;
             ps.lineBreakMode = NSLineBreakByWordWrapping;
             inlineParser.paragraphStyle = ps;
-            NSMutableAttributedString *t = [inlineParser parse:[cont componentsJoinedByString:@"\n"]];
+            NSMutableAttributedString *t = [inlineParser parse:[cont componentsJoinedByString:@" "]];
             NSMutableAttributedString *m = [[NSMutableAttributedString alloc] initWithString:prefix
                                                                                   attributes:@{ NSFontAttributeName: [theme messageFont], NSForegroundColorAttributeName: textColor, NSParagraphStyleAttributeName: ps }];
             [m appendAttributedString:t];

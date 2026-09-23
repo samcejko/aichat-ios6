@@ -29,8 +29,8 @@ $Api = "https://api.github.com/repos/$Repo"
 
 function Invoke-GH {
     param([string]$Method, [string]$Path, $Body)
-    $params = @{ Method = $Method; Uri = "$Api$Path"; Headers = $Headers; ContentType = 'application/json' }
-    if ($null -ne $Body) { $params.Body = ($Body | ConvertTo-Json -Depth 10 -Compress) }
+    $params = @{ Method = $Method; Uri = "$Api$Path"; Headers = $Headers; ContentType = 'application/json; charset=utf-8' }
+    if ($null -ne $Body) { $params.Body = [Text.Encoding]::UTF8.GetBytes(($Body | ConvertTo-Json -Depth 10 -Compress)) }
     $attempt = 0
     while ($true) {
         $attempt++
@@ -63,6 +63,10 @@ if (-not $Branch) {
 }
 
 if ($Trigger) {
+    if ($AfterRunId -eq 0) {
+        $prev = Invoke-GH GET "/actions/runs?branch=$Branch&per_page=1"
+        if ($prev.workflow_runs) { $AfterRunId = [long]$prev.workflow_runs[0].id }
+    }
     Invoke-GH POST "/actions/workflows/build.yml/dispatches" @{ ref = $Branch } | Out-Null
     Write-Host "Triggered workflow_dispatch on $Branch"
     Start-Sleep -Seconds 8
@@ -93,11 +97,11 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 if ($run.conclusion -ne 'success') {
     $jobs = Invoke-GH GET "/actions/runs/$($run.id)/jobs"
     foreach ($job in $jobs.jobs) {
-        if ($job.conclusion -eq 'success') { continue }
+        if ($job.conclusion -eq 'success' -or $job.conclusion -eq 'skipped') { continue }
         Write-Host "== Job '$($job.name)' -> $($job.conclusion)"
         foreach ($step in $job.steps) { Write-Host "   step '$($step.name)': $($step.conclusion)" }
         $logPath = Join-Path $OutDir "job-$($job.id).log"
-        Download-GH "$Api/actions/jobs/$($job.id)/logs" $logPath
+        try { Download-GH "$Api/actions/jobs/$($job.id)/logs" $logPath } catch { Write-Warning $_; continue }
         $lines = Get-Content $logPath
         $interesting = $lines | Where-Object { $_ -match 'error:|Error |fatal|undefined|No such file|failed|\*\*\* ' } | Select-Object -First 80
         Write-Host "---- errors ($logPath) ----"
