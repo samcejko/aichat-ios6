@@ -9,6 +9,7 @@ typedef NS_ENUM(NSInteger, ORMDBlockType) {
     ORMDBlockQuote,
     ORMDBlockRule,
     ORMDBlockTable,
+    ORMDBlockMath,      // display math, rawText holds the LaTeX
 };
 
 @interface ORMDBlock : NSObject

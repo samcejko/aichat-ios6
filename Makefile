@@ -13,21 +13,30 @@ include $(THEOS)/makefiles/common.mk
 
 APPLICATION_NAME := AIChat
 
+# iosMath (LaTeX rendering, MIT) is fetched into vendor/iosMath by CI; the NS*/AppKit files are macOS only.
+IOSMATH_FILES := $(filter-out %NSBezierPath+addLineToPoint.m %NSColor+HexString.m %NSView+backgroundColor.m, \
+                   $(wildcard vendor/iosMath/iosMath/lib/*.m) \
+                   $(wildcard vendor/iosMath/iosMath/render/*.m) \
+                   $(wildcard vendor/iosMath/iosMath/render/internal/*.m))
+
 AIChat_FILES := $(wildcard src/*.m) $(wildcard src/*/*.m) \
                 vendor/mbedtls_glue.c \
-                $(wildcard vendor/mbedtls/library/*.c)
+                $(wildcard vendor/mbedtls/library/*.c) \
+                $(IOSMATH_FILES)
 
-AIChat_FRAMEWORKS := UIKit Foundation CoreGraphics QuartzCore Security ImageIO QuickLook AssetsLibrary
+AIChat_FRAMEWORKS := UIKit Foundation CoreGraphics QuartzCore CoreText Security ImageIO QuickLook AssetsLibrary
 
 # Flags for every C-family file (also the vendored mbedTLS sources)
 AIChat_CFLAGS := -Isrc -Isrc/Net -Isrc/Model -Isrc/Chat -Isrc/Markdown -Isrc/UI -Isrc/Theme -Isrc/Util \
                  -Ivendor -Ivendor/mbedtls/include -Ivendor/mbedtls/library \
+                 -Ivendor/iosMath/iosMath/lib -Ivendor/iosMath/iosMath/render -Ivendor/iosMath/iosMath/render/internal \
                  -Os -fvisibility=hidden \
                  -Wall -Wno-unused-variable -Wno-unused-function -Wno-unused-but-set-variable \
                  -Wno-deprecated-declarations -Wno-unknown-warning-option
 
-# Objective-C only: ARC and hard failure on any API newer than iOS 6.0
-AIChat_OBJCFLAGS := -fobjc-arc -Wunguarded-availability -Werror=unguarded-availability
+# Objective-C only: ARC; APIs newer than iOS 6.0 are warnings here and turned into errors for our own
+# sources by the pragma in src/ORCommon.h (vendored code only warns).
+AIChat_OBJCFLAGS := -fobjc-arc -Wunguarded-availability
 
 AIChat_LDFLAGS := -lz
 

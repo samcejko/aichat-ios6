@@ -6,8 +6,39 @@
 #import "ORUtils.h"
 #import "ORCommon.h"
 #import <QuartzCore/QuartzCore.h>
+#import "MTMathUILabel.h"
+#import "MTFontManager.h"
 
 static const CGFloat kSideMargin = 8.0;
+static const CGFloat kMathPad = 6.0;
+static const CGFloat kMathMaxHeight = 420.0;
+
+// Shared label used only for measuring formulas.
+static MTMathUILabel *ORMathMeasureLabel(void)
+{
+    static MTMathUILabel *label = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ label = [[MTMathUILabel alloc] initWithFrame:CGRectZero]; });
+    return label;
+}
+
+static CGFloat ORMathFontSize(void)
+{
+    return [[ORTheme shared] messageFontSize] + 1.0;
+}
+
+// Natural size of a rendered formula; width 0 means the LaTeX could not be parsed.
+static CGSize ORMeasureMath(NSString *latex)
+{
+    MTMathUILabel *l = ORMathMeasureLabel();
+    l.fontSize = ORMathFontSize();
+    l.labelMode = kMTMathUILabelModeDisplay;
+    l.latex = latex ?: @"";
+    if (l.error || !latex.length) return CGSizeZero;
+    CGSize s = [l sizeThatFits:CGSizeMake(10000, 10000)];
+    if (s.width <= 0 || s.height <= 0) return CGSizeZero;
+    return CGSizeMake(ceil(s.width), ceil(s.height));
+}
 static const CGFloat kBubblePadH = 11.0;
 static const CGFloat kBubblePadV = 8.0;
 static const CGFloat kBlockSpacing = 7.0;
@@ -258,6 +289,17 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         first = NO;
         CGSize size = CGSizeZero;
         switch (b.type) {
+            case ORMDBlockMath: {
+                CGSize s = ORMeasureMath(b.rawText);
+                if (s.width <= 0) {
+                    // unparsable LaTeX: fall back to the raw source in a code box
+                    CGSize c = ORMeasure(ORCodeAttributed(b.rawText, textColor), contentMax - 2 * kCodePad);
+                    size = CGSizeMake(contentMax, c.height + 2 * kCodePad);
+                } else {
+                    size = CGSizeMake(contentMax, MIN(s.height, kMathMaxHeight) + 2 * kMathPad);
+                }
+                break;
+            }
             case ORMDBlockCode:
             case ORMDBlockTable: {
                 CGSize s = ORMeasure(ORCodeAttributed(b.rawText, textColor), contentMax - 2 * kCodePad);
@@ -518,6 +560,32 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         f.origin.y += kBubblePadV;
         UIView *v = nil;
         switch (bf.block.type) {
+            case ORMDBlockMath: {
+                CGSize natural = ORMeasureMath(bf.block.rawText);
+                if (natural.width <= 0) {
+                    ORCodeBlockView *cv = [[ORCodeBlockView alloc] initWithFrame:f];
+                    cv.backgroundColor = [theme codeBackgroundColorInUserBubble:isUser];
+                    cv.label.attributedText = ORCodeAttributed(bf.block.rawText, textColor);
+                    v = cv;
+                    break;
+                }
+                MTMathUILabel *math = [[MTMathUILabel alloc] initWithFrame:CGRectMake(0, 0, natural.width, natural.height)];
+                math.fontSize = ORMathFontSize();
+                math.labelMode = kMTMathUILabelModeDisplay;
+                math.textColor = textColor;
+                math.backgroundColor = [UIColor clearColor];
+                math.latex = bf.block.rawText;
+                UIScrollView *scroll = [[UIScrollView alloc] initWithFrame:f];
+                scroll.backgroundColor = [UIColor clearColor];
+                scroll.showsVerticalScrollIndicator = NO;
+                scroll.scrollsToTop = NO;
+                CGFloat x = natural.width < f.size.width ? floor((f.size.width - natural.width) / 2) : 0;
+                math.frame = CGRectMake(x, kMathPad, natural.width, natural.height);
+                scroll.contentSize = CGSizeMake(MAX(natural.width, f.size.width), natural.height + 2 * kMathPad);
+                [scroll addSubview:math];
+                v = scroll;
+                break;
+            }
             case ORMDBlockCode:
             case ORMDBlockTable: {
                 ORCodeBlockView *cv = [[ORCodeBlockView alloc] initWithFrame:f];

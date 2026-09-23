@@ -83,6 +83,17 @@ jobs:
           cp vendor/mbedtls_config_ios6.h vendor/mbedtls/include/mbedtls/mbedtls_config.h
           echo "mbedTLS sources: $(ls vendor/mbedtls/library/*.c | wc -l)"
 
+      - name: Fetch iosMath 0.9.5 (LaTeX rendering)
+        run: |
+          set -e
+          curl -sSL https://github.com/kostub/iosMath/archive/refs/tags/0.9.5.tar.gz -o /tmp/iosmath.tar.gz
+          rm -rf vendor/iosMath && mkdir -p vendor/iosMath
+          tar -xzf /tmp/iosmath.tar.gz -C vendor/iosMath --strip-components=1
+          rm -rf Resources/mathFonts.bundle && mkdir -p Resources/mathFonts.bundle
+          cp vendor/iosMath/fonts/latinmodern-math.otf vendor/iosMath/fonts/latinmodern-math.plist Resources/mathFonts.bundle/
+          echo "iosMath sources: $(find vendor/iosMath/iosMath -name '*.m' | wc -l)"
+          ls -la Resources/mathFonts.bundle
+
       - name: Fetch CA bundle
         run: |
           curl -sSf https://curl.se/ca/cacert.pem -o Resources/cacert.pem

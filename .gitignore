@@ -2,6 +2,8 @@
 obj/
 packages/
 vendor/mbedtls/
+vendor/iosMath/
+Resources/mathFonts.bundle/
 Resources/Icon*.png
 Resources/Default*.png
 Resources/cacert.pem

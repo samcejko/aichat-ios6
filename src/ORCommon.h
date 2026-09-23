@@ -2,6 +2,9 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
+// Any API newer than the iOS 6.0 deployment target is a hard error in files that include this header.
+#pragma clang diagnostic error "-Wunguarded-availability"
+
 #define L(key) NSLocalizedString((key), nil)
 #define ORIsPad() (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad)
 #define ORLog(fmt, ...) NSLog((@"[AIChat] " fmt), ##__VA_ARGS__)

@@ -1,4 +1,5 @@
 #import "ORMarkdown.h"
+#import "ORMathText.h"
 #import "ORTheme.h"
 
 @implementation ORMDBlock
@@ -296,8 +297,13 @@ static BOOL ORParseListItem(NSString *line, NSString **marker, NSString **conten
     if (t.length < 2) return NO;
     unichar c = [t characterAtIndex:0];
     if ((c == '-' || c == '*' || c == '+') && [t characterAtIndex:1] == ' ') {
-        if (marker) *marker = @"•";
-        if (content) *content = [t substringFromIndex:2];
+        NSString *body = [t substringFromIndex:2];
+        NSString *mark = @"•";
+        // task list items: "- [ ] todo" / "- [x] done"
+        if ([body hasPrefix:@"[ ] "]) { mark = @"☐"; body = [body substringFromIndex:4]; }
+        else if ([body hasPrefix:@"[x] "] || [body hasPrefix:@"[X] "]) { mark = @"☑"; body = [body substringFromIndex:4]; }
+        if (marker) *marker = mark;
+        if (content) *content = body;
         if (indent) *indent = (NSInteger)(lead / 2);
         return YES;
     }
@@ -312,11 +318,48 @@ static BOOL ORParseListItem(NSString *line, NSString **marker, NSString **conten
     return NO;
 }
 
+// Moves single-line "$$...$$" / "\[...\]" spans onto their own lines so the block parser sees them,
+// but leaves fenced code untouched.
+static NSString *ORNormalizeDisplayMath(NSString *markdown)
+{
+    if ([markdown rangeOfString:@"$$"].location == NSNotFound && [markdown rangeOfString:@"\\["].location == NSNotFound) return markdown;
+    NSMutableString *out = [NSMutableString string];
+    NSArray *lines = [markdown componentsSeparatedByString:@"\n"];
+    BOOL inFence = NO;
+    NSRegularExpression *dollar = [NSRegularExpression regularExpressionWithPattern:@"\\$\\$(.+?)\\$\\$" options:0 error:NULL];
+    NSRegularExpression *bracket = [NSRegularExpression regularExpressionWithPattern:@"\\\\\\[(.+?)\\\\\\]" options:0 error:NULL];
+    NSUInteger idx = 0;
+    for (NSString *line in lines) {
+        NSString *t = [line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        if ([t hasPrefix:@"```"] || [t hasPrefix:@"~~~"]) inFence = !inFence;
+        NSString *l = line;
+        if (!inFence && !([t hasPrefix:@"$$"] && [t hasSuffix:@"$$"] && t.length >= 4)) {
+            // template: literal $$ must be escaped as \$ in NSRegularExpression templates
+            l = [dollar stringByReplacingMatchesInString:l options:0 range:NSMakeRange(0, l.length) withTemplate:@"\n\\$\\$$1\\$\\$\n"];
+            l = [bracket stringByReplacingMatchesInString:l options:0 range:NSMakeRange(0, l.length) withTemplate:@"\n\\$\\$$1\\$\\$\n"];
+        }
+        [out appendString:l];
+        if (++idx < lines.count) [out appendString:@"\n"];
+    }
+    return out;
+}
+
+// A line that opens or closes a display-math block.
+static BOOL ORIsMathDelimiter(NSString *trimmed, BOOL *isBracket)
+{
+    if ([trimmed hasPrefix:@"$$"]) { if (isBracket) *isBracket = NO; return YES; }
+    if ([trimmed isEqualToString:@"\\["]) { if (isBracket) *isBracket = YES; return YES; }
+    return NO;
+}
+
 + (NSArray *)blocksFromMarkdown:(NSString *)markdown textColor:(UIColor *)textColor inUserBubble:(BOOL)inUser
 {
     NSMutableArray *blocks = [NSMutableArray array];
     if (!markdown) return blocks;
-    NSArray *lines = [[markdown stringByReplacingOccurrencesOfString:@"\r\n" withString:@"\n"] componentsSeparatedByString:@"\n"];
+    NSString *normalized = [markdown stringByReplacingOccurrencesOfString:@"\r\n" withString:@"\n"];
+    normalized = [ORMathText cleanupHTMLIn:normalized];
+    normalized = ORNormalizeDisplayMath(normalized);
+    NSArray *lines = [normalized componentsSeparatedByString:@"\n"];
     NSMutableArray *para = [NSMutableArray array];
     ORTheme *theme = [ORTheme shared];
 
@@ -327,7 +370,7 @@ static BOOL ORParseListItem(NSString *line, NSString **marker, NSString **conten
 
     void (^flushPara)(void) = ^{
         if (!para.count) return;
-        NSString *joined = [para componentsJoinedByString:@"\n"];
+        NSString *joined = [ORMathText convertInlineMathIn:[para componentsJoinedByString:@"\n"]];
         [para removeAllObjects];
         ORMDBlock *b = [[ORMDBlock alloc] init];
         b.type = ORMDBlockParagraph;
@@ -341,6 +384,41 @@ static BOOL ORParseListItem(NSString *line, NSString **marker, NSString **conten
     while (i < n) {
         NSString *line = lines[i];
         NSString *lang = nil;
+
+        // Display math: $$ ... $$ or \[ ... \]
+        {
+            NSString *t = [line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+            BOOL bracket = NO;
+            if (ORIsMathDelimiter(t, &bracket)) {
+                flushPara();
+                NSMutableArray *math = [NSMutableArray array];
+                NSString *closer = bracket ? @"\\]" : @"$$";
+                if (!bracket && t.length >= 4 && [t hasSuffix:@"$$"]) {
+                    [math addObject:[t substringWithRange:NSMakeRange(2, t.length - 4)]];
+                    i++;
+                } else {
+                    NSString *rest = bracket ? @"" : [t substringFromIndex:2];
+                    if (rest.length) [math addObject:rest];
+                    i++;
+                    while (i < n) {
+                        NSString *ml = lines[i];
+                        NSString *mt = [ml stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                        i++;
+                        if ([mt hasSuffix:closer]) {
+                            NSString *head = [mt substringToIndex:mt.length - closer.length];
+                            if (head.length) [math addObject:head];
+                            break;
+                        }
+                        [math addObject:ml];
+                    }
+                }
+                ORMDBlock *b = [[ORMDBlock alloc] init];
+                b.type = ORMDBlockMath;
+                b.rawText = [[math componentsJoinedByString:@"\n"] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                if (b.rawText.length) [blocks addObject:b];
+                continue;
+            }
+        }
 
         if (ORIsFence(line, &lang)) {
             flushPara();
@@ -378,7 +456,7 @@ static BOOL ORParseListItem(NSString *line, NSString **marker, NSString **conten
                 b.type = ORMDBlockHeading;
                 b.level = (NSInteger)level;
                 inlineParser.paragraphStyle = nil;
-                NSMutableAttributedString *t = [inlineParser parse:content];
+                NSMutableAttributedString *t = [inlineParser parse:[ORMathText convertInlineMathIn:content]];
                 [t addAttribute:NSFontAttributeName value:[theme headingFontForLevel:(NSInteger)level] range:NSMakeRange(0, t.length)];
                 b.text = t;
                 [blocks addObject:b];
@@ -476,7 +554,7 @@ static BOOL ORParseListItem(NSString *line, NSString **marker, NSString **conten
             ps.headIndent = base + markerWidth;
             ps.lineBreakMode = NSLineBreakByWordWrapping;
             inlineParser.paragraphStyle = ps;
-            NSMutableAttributedString *t = [inlineParser parse:[cont componentsJoinedByString:@" "]];
+            NSMutableAttributedString *t = [inlineParser parse:[ORMathText convertInlineMathIn:[cont componentsJoinedByString:@" "]]];
             NSMutableAttributedString *m = [[NSMutableAttributedString alloc] initWithString:prefix
                                                                                   attributes:@{ NSFontAttributeName: [theme messageFont], NSForegroundColorAttributeName: textColor, NSParagraphStyleAttributeName: ps }];
             [m appendAttributedString:t];
@@ -503,7 +581,7 @@ static BOOL ORParseListItem(NSString *line, NSString **marker, NSString **conten
             ps.firstLineHeadIndent = 12;
             ps.headIndent = 12;
             inlineParser.paragraphStyle = ps;
-            b.text = [inlineParser parse:[q componentsJoinedByString:@"\n"]];
+            b.text = [inlineParser parse:[ORMathText convertInlineMathIn:[q componentsJoinedByString:@"\n"]]];
             [blocks addObject:b];
             continue;
         }
