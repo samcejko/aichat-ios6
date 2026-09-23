@@ -1,0 +1,18 @@
+/* AI Chat – English. Keys are the English strings themselves; this file mainly documents them. */
+
+"Thinking…" = "Thinking…";
+"Reasoning…" = "Reasoning…";
+"Cancelled" = "Cancelled";
+"OK" = "OK";
+"Free" = "Free";
+"New chat" = "New chat";
+"Settings" = "Settings";
+"Choose model" = "Choose model";
+"Model" = "Model";
+"Cancel" = "Cancel";
+"Send" = "Send";
+"Stop" = "Stop";
+"Message" = "Message";
+"History" = "History";
+"Delete" = "Delete";
+"Regenerate" = "Regenerate";
