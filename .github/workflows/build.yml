@@ -109,6 +109,24 @@ jobs:
           done
           ls "$SDK/usr/lib/system" | head -n 60
 
+          # The packaged libsystem_c.tbd / libsystem_platform.tbd lack the plain libc string/memory
+          # symbols (only __platform_* and *_chk variants are listed), so C code fails to link.
+          # At runtime libSystem.B.dylib provides them on every iOS version, so add them to the stub.
+          LIBC="$SDK/usr/lib/system/libsystem_c.tbd"
+          ADD=""
+          for sym in _memcpy _memset _memmove _memcmp _memchr _strchr _strcmp _strncmp _strlen _strnlen _bzero \
+                     _strcpy _strncpy _strcat _strlcpy _strlcat _strstr _strrchr _strdup _memset_s _memset_pattern4 \
+                     _memset_pattern8 _memset_pattern16 _strncasecmp _strcasecmp; do
+            if ! grep -Eq "[[ ,]${sym}[], ]" "$LIBC" "$SDK/usr/lib/system/libsystem_platform.tbd"; then
+              ADD="${ADD}${sym}, "
+            fi
+          done
+          if [ -n "$ADD" ]; then
+            echo "adding to libsystem_c.tbd: $ADD"
+            sed -i "0,/symbols:            \[ /s//symbols:            [ ${ADD}/" "$LIBC"
+            grep -c "_memcpy" "$LIBC"
+          fi
+
       - name: Build
         run: |
           set -o pipefail
