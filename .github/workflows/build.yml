@@ -2,7 +2,12 @@ name: Build AIChat (iOS 6, armv7)
 
 on:
   push:
+    branches: ['**']   # not for tags, a release tag points at a commit that was already built
   workflow_dispatch:
+
+# The build only reads the repository; nothing here needs a write token.
+permissions:
+  contents: read
 
 env:
   THEOS: /home/runner/theos
@@ -106,10 +111,9 @@ jobs:
           cp THIRD-PARTY-NOTICES.md Resources/licenses/THIRD-PARTY-NOTICES.txt
           cp vendor/mbedtls/LICENSE Resources/licenses/mbedtls-LICENSE.txt
           cp vendor/iosMath/LICENSE Resources/licenses/iosMath-LICENSE.txt
-          # Font licenses, when the iosMath tarball carries them
-          find vendor/iosMath/fonts -maxdepth 1 -type f \( -iname '*licen*' -o -iname 'OFL*' -o -iname '*GUST*' \) \
-            -exec sh -c 'cp "$1" "Resources/licenses/fonts-$(basename "$1")"' _ {} \;
-          ls -la Resources/licenses vendor/iosMath/fonts
+          # Only Latin Modern Math is shipped, so only its license (GUST) is needed from the fonts folder
+          cp vendor/iosMath/fonts/GUST-FONT-LICENSE.txt Resources/licenses/LatinModernMath-GUST-FONT-LICENSE.txt
+          ls -la Resources/licenses
 
       - name: Generate icons and launch images
         run: python3 tools/gen_assets.py Resources
