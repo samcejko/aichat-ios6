@@ -4,6 +4,7 @@ packages/
 vendor/mbedtls/
 vendor/iosMath/
 Resources/mathFonts.bundle/
+Resources/licenses/
 Resources/Icon*.png
 Resources/Default*.png
 Resources/cacert.pem

@@ -51,6 +51,9 @@ typedef NS_ENUM(NSInteger, ORModelSort) {
 @property (nonatomic, copy) NSString *reasoningEffort;      // default | off | low | medium | high
 @property (nonatomic) BOOL showReasoning;
 
+// New in 0.2.4
+@property (nonatomic) BOOL webSearchWarningHidden;          // "Don't Show Again" on the paid web search alert
+
 // Personas: array of dictionaries { id, name, prompt }. "none" means no system prompt.
 @property (nonatomic, strong) NSArray *personas;
 @property (nonatomic, copy) NSString *activePersonaId;

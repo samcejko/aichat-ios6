@@ -208,6 +208,9 @@ static NSString * const kFallbackKey     = @"apiKey.fallback";
 - (BOOL)webSearch { return [DEF boolForKey:@"webSearch"]; }
 - (void)setWebSearch:(BOOL)v { [DEF setBool:v forKey:@"webSearch"]; [self notify]; }
 
+- (BOOL)webSearchWarningHidden { return [DEF boolForKey:@"webSearchWarningHidden"]; }
+- (void)setWebSearchWarningHidden:(BOOL)v { [DEF setBool:v forKey:@"webSearchWarningHidden"]; }
+
 - (NSString *)reasoningEffort { return [DEF stringForKey:@"reasoningEffort"] ?: @"default"; }
 - (void)setReasoningEffort:(NSString *)v { [DEF setObject:v forKey:@"reasoningEffort"]; }
 

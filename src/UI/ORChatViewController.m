@@ -20,9 +20,10 @@
 #import <QuickLook/QuickLook.h>
 
 static NSString * const kCellId = @"msg";
+static const NSInteger kWebSearchAlertTag = 4201;
 
 @interface ORChatViewController () <UITableViewDataSource, UITableViewDelegate, ORChatEngineDelegate, ORMessageCellDelegate,
-                                    ORInputBarDelegate, UIActionSheetDelegate, UIImagePickerControllerDelegate,
+                                    ORInputBarDelegate, UIActionSheetDelegate, UIAlertViewDelegate, UIImagePickerControllerDelegate,
                                     UINavigationControllerDelegate, UIPopoverControllerDelegate, QLPreviewControllerDataSource>
 @property (nonatomic, strong) ORChatEngine *engine;
 @property (nonatomic, strong) UITableView *tableView;
@@ -748,10 +749,34 @@ static NSString * const kCellId = @"msg";
 
 - (void)inputBarDidToggleWebSearch:(ORInputBar *)bar
 {
-    BOOL on = ![ORSettings shared].webSearch;
+    ORSettings *s = [ORSettings shared];
+    if (!s.webSearch && !s.webSearchWarningHidden) {
+        // Web search is billed by OpenRouter even with free models, so ask before turning it on.
+        UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Web search is paid")
+                                                        message:L(@"OpenRouter charges extra for every message sent with web search on – usually around one cent, depending on the model. It is paid from your OpenRouter credits, even when the model itself is free.")
+                                                       delegate:self
+                                              cancelButtonTitle:L(@"Cancel")
+                                              otherButtonTitles:L(@"Turn On"), L(@"Don't Show Again"), nil];
+        alert.tag = kWebSearchAlertTag;
+        [alert show];
+        return;
+    }
+    [self setWebSearchEnabled:!s.webSearch];
+}
+
+- (void)setWebSearchEnabled:(BOOL)on
+{
     [ORSettings shared].webSearch = on;
     [[ORSettings shared] save];
-    bar.webSearchOn = on;
+    self.inputBar.webSearchOn = on;
+}
+
+- (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex
+{
+    if (alertView.tag != kWebSearchAlertTag || buttonIndex == alertView.cancelButtonIndex) return;
+    // "Don't Show Again" also turns the search on, it only skips this alert next time.
+    if (buttonIndex != alertView.firstOtherButtonIndex) [ORSettings shared].webSearchWarningHidden = YES;
+    [self setWebSearchEnabled:YES];
 }
 
 - (void)inputBar:(ORInputBar *)bar didRemoveAttachment:(ORAttachment *)attachment

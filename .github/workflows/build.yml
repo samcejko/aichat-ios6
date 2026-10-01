@@ -99,6 +99,18 @@ jobs:
           curl -sSf https://curl.se/ca/cacert.pem -o Resources/cacert.pem
           grep -c "BEGIN CERTIFICATE" Resources/cacert.pem
 
+      - name: Collect third-party license texts (shipped inside the app)
+        run: |
+          set -e
+          rm -rf Resources/licenses && mkdir -p Resources/licenses
+          cp THIRD-PARTY-NOTICES.md Resources/licenses/THIRD-PARTY-NOTICES.txt
+          cp vendor/mbedtls/LICENSE Resources/licenses/mbedtls-LICENSE.txt
+          cp vendor/iosMath/LICENSE Resources/licenses/iosMath-LICENSE.txt
+          # Font licenses, when the iosMath tarball carries them
+          find vendor/iosMath/fonts -maxdepth 1 -type f \( -iname '*licen*' -o -iname 'OFL*' -o -iname '*GUST*' \) \
+            -exec sh -c 'cp "$1" "Resources/licenses/fonts-$(basename "$1")"' _ {} \;
+          ls -la Resources/licenses vendor/iosMath/fonts
+
       - name: Generate icons and launch images
         run: python3 tools/gen_assets.py Resources
 
