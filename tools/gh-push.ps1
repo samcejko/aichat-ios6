@@ -1,11 +1,14 @@
 # Pushes the working tree to GitHub through the REST API (no local git needed).
-# Usage: .\tools\gh-push.ps1 -Repo owner/name -Token ghp_xxx -Message "commit message"
+# Usage: .\tools\gh-push.ps1 -Repo owner/name -Token ghp_xxx -Message "commit message" [-DryRun]
+# -DryRun only lists what would change. Files that look like they contain a token or a private key
+# stop the push before anything is uploaded.
 param(
     [Parameter(Mandatory = $true)][string]$Repo,
     [string]$Token = $env:GH_TOKEN,
     [string]$Branch = '',
     [string]$Message = 'Update',
-    [string]$Root = ''
+    [string]$Root = '',
+    [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
@@ -46,9 +49,14 @@ function Test-Ignored([string]$rel) {
     $r = $rel -replace '\\', '/'
     if ($r -like '.theos/*' -or $r -like 'obj/*' -or $r -like 'packages/*' -or $r -like 'vendor/mbedtls/*' -or $r -like 'vendor/iosMath/*' -or $r -like '.git/*') { return $true }
     if ($r -like 'Resources/Icon*.png' -or $r -like 'Resources/Default*.png' -or $r -eq 'Resources/cacert.pem' -or $r -like 'Resources/mathFonts.bundle/*' -or $r -like 'Resources/licenses/*') { return $true }
-    if ($r -like '*.ipa' -or $r -like '*.deb' -or $r -like '*.DS_Store' -or $r -eq 'tools/local.json' -or $r -like '*.log') { return $true }
+    if ($r -like '*.ipa' -or $r -like '*.deb' -or $r -like '*.DS_Store' -or $r -like '*.log') { return $true }
+    # Local settings with the token, wherever they are
+    if (($r -split '/')[-1] -eq 'local.json') { return $true }
     return $false
 }
+
+# GitHub and OpenRouter tokens, private keys. Checked on every file before anything is uploaded.
+$SecretPattern = 'github_pat_[A-Za-z0-9_]{30,}|gh[pousr]_[A-Za-z0-9]{36,}|sk-or-v1-[0-9a-f]{32,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
 
 function Get-GitBlobSha([byte[]]$bytes) {
     $header = [Text.Encoding]::ASCII.GetBytes("blob $($bytes.Length)`0")
@@ -97,23 +105,36 @@ $tree = Invoke-GH GET "/git/trees/$baseTree`?recursive=1"
 foreach ($e in $tree.tree) { if ($e.type -eq 'blob') { $remote[$e.path] = $e.sha } }
 Write-Host "Head $($headSha.Substring(0,7)), $($remote.Count) remote files"
 
-# 2. Local files
+# 2. Local files: read and check everything first, upload afterwards
 $rootFull = (Resolve-Path $Root).Path
-$entries = New-Object System.Collections.ArrayList
-$seen = @{}
-$uploaded = 0
+# A folder that is itself a copy of the project (some tools copy a workspace into the folder) is never pushed.
+$nestedCopies = @(Get-ChildItem -Path $rootFull -Directory -Force |
+    Where-Object { (Test-Path (Join-Path $_.FullName 'control')) -and (Test-Path (Join-Path $_.FullName 'Makefile')) } |
+    ForEach-Object { $_.Name })
+foreach ($n in $nestedCopies) { Write-Warning "Skipping '$n/': it looks like a copy of the project inside itself" }
+
+$local = New-Object System.Collections.ArrayList
 Get-ChildItem -Path $rootFull -Recurse -File -Force | ForEach-Object {
     $rel = $_.FullName.Substring($rootFull.Length).TrimStart('\', '/') -replace '\\', '/'
     if (Test-Ignored $rel) { return }
+    if ($nestedCopies -contains ($rel -split '/')[0]) { return }
     $bytes = [IO.File]::ReadAllBytes($_.FullName)
-    $sha = Get-GitBlobSha $bytes
-    $seen[$rel] = $true
-    if ($remote.ContainsKey($rel) -and $remote[$rel] -eq $sha) { return }
-    $blob = Invoke-GH POST "/git/blobs" @{ content = [Convert]::ToBase64String($bytes); encoding = 'base64' }
-    if ($blob.sha -ne $sha) { Write-Warning "sha mismatch for $rel (local $sha, remote $($blob.sha))" }
-    [void]$entries.Add(@{ path = $rel; mode = '100644'; type = 'blob'; sha = $blob.sha })
-    $script:uploaded++
-    Write-Host "  + $rel"
+    if ([regex]::IsMatch([Text.Encoding]::ASCII.GetString($bytes), $SecretPattern)) {
+        throw "Refusing to push '$rel': it looks like it contains a token or a private key. Nothing was uploaded."
+    }
+    [void]$local.Add(@{ rel = $rel; bytes = $bytes; sha = (Get-GitBlobSha $bytes) })
+}
+
+$entries = New-Object System.Collections.ArrayList
+$seen = @{}
+foreach ($f in $local) {
+    $seen[$f.rel] = $true
+    if ($remote.ContainsKey($f.rel) -and $remote[$f.rel] -eq $f.sha) { continue }
+    Write-Host "  + $($f.rel)"
+    if ($DryRun) { [void]$entries.Add(@{ path = $f.rel }); continue }
+    $blob = Invoke-GH POST "/git/blobs" @{ content = [Convert]::ToBase64String($f.bytes); encoding = 'base64' }
+    if ($blob.sha -ne $f.sha) { Write-Warning "sha mismatch for $($f.rel) (local $($f.sha), remote $($blob.sha))" }
+    [void]$entries.Add(@{ path = $f.rel; mode = '100644'; type = 'blob'; sha = $blob.sha })
 }
 foreach ($p in $remote.Keys) {
     if (-not $seen.ContainsKey($p) -and -not (Test-Ignored $p)) {
@@ -122,6 +143,7 @@ foreach ($p in $remote.Keys) {
     }
 }
 if ($entries.Count -eq 0) { Write-Host "Nothing to push."; exit 0 }
+if ($DryRun) { Write-Host "Dry run: $($entries.Count) changes, nothing was pushed."; exit 0 }
 
 # 3. Tree, commit, ref
 $newTree = Invoke-GH POST "/git/trees" @{ base_tree = $baseTree; tree = $entries.ToArray() }

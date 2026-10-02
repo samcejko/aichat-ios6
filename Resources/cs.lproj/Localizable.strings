@@ -238,3 +238,6 @@
 "OpenRouter charges extra for every message sent with web search on – usually around one cent, depending on the model. It is paid from your OpenRouter credits, even when the model itself is free." = "OpenRouter si za každou zprávu odeslanou se zapnutým vyhledáváním na webu účtuje příplatek – obvykle kolem jednoho centu, podle modelu. Platí se z kreditu na účtu OpenRouter, i když je samotný model zdarma.";
 "Turn On" = "Zapnout";
 "Don't Show Again" = "Znovu nezobrazovat";
+
+/* 0.2.5 */
+"Author" = "Autor";

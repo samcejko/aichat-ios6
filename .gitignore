@@ -11,4 +11,4 @@ Resources/cacert.pem
 *.ipa
 *.deb
 .DS_Store
-tools/local.json
+local.json

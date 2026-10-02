@@ -229,7 +229,7 @@ typedef NS_ENUM(NSInteger, ORSection) {
         case ORSectionAppearance: return 2;
         case ORSectionAttachments: return 2;
         case ORSectionAdvanced: return 4;
-        case ORSectionAbout: return 3;
+        case ORSectionAbout: return 4;
         default: return 0;
     }
 }
@@ -399,6 +399,10 @@ typedef NS_ENUM(NSInteger, ORSection) {
                 cell.detailTextLabel.text = [ORUtils appVersion];
                 cell.selectionStyle = UITableViewCellSelectionStyleNone;
             } else if (row == 1) {
+                cell.textLabel.text = L(@"Author");
+                cell.detailTextLabel.text = @"samcejko";
+                cell.selectionStyle = UITableViewCellSelectionStyleNone;
+            } else if (row == 2) {
                 cell.textLabel.text = L(@"Root certificates");
                 cell.detailTextLabel.text = [NSString stringWithFormat:@"%ld", (long)[ORTLSSocket caCertificateCount]];
                 cell.selectionStyle = UITableViewCellSelectionStyleNone;
@@ -527,7 +531,7 @@ typedef NS_ENUM(NSInteger, ORSection) {
                                                   cancelButtonTitle:L(@"Cancel") destructiveButtonTitle:L(@"Delete All") otherButtonTitles:nil];
         UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
         [sheet showFromRect:cell.bounds inView:cell animated:YES];
-    } else if (sec == ORSectionAbout && row == 2) {
+    } else if (sec == ORSectionAbout && row == 3) {
         [[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://openrouter.ai/keys"]];
     }
 }

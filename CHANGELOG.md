@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.5 (2026-10-02)
 
+- Settings > About shows the author.
 - The project is MIT licensed; the license is shipped inside the app next to the third-party ones.
 - Pull requests are built by GitHub Actions; see `CONTRIBUTING.md`.
 
