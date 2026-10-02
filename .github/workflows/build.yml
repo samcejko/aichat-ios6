@@ -3,6 +3,7 @@ name: Build AIChat (iOS 6, armv7)
 on:
   push:
     branches: ['**']   # not for tags, a release tag points at a commit that was already built
+  pull_request:        # also from forks, so it is visible whether a contribution compiles
   workflow_dispatch:
 
 # The build only reads the repository; nothing here needs a write token.
@@ -104,10 +105,12 @@ jobs:
           curl -sSf https://curl.se/ca/cacert.pem -o Resources/cacert.pem
           grep -c "BEGIN CERTIFICATE" Resources/cacert.pem
 
-      - name: Collect third-party license texts (shipped inside the app)
+      - name: Collect license texts (shipped inside the app)
         run: |
           set -e
           rm -rf Resources/licenses && mkdir -p Resources/licenses
+          # The app's own license travels with every package, so the copyright notice stays with builds of forks too
+          cp LICENSE Resources/licenses/AIChat-LICENSE.txt
           cp THIRD-PARTY-NOTICES.md Resources/licenses/THIRD-PARTY-NOTICES.txt
           cp vendor/mbedtls/LICENSE Resources/licenses/mbedtls-LICENSE.txt
           cp vendor/iosMath/LICENSE Resources/licenses/iosMath-LICENSE.txt

@@ -1,6 +1,7 @@
 # Third-party notices
 
-AI Chat itself contains no third-party source code in this repository. The build (see
+AI Chat itself is MIT licensed (see `LICENSE`) and contains no third-party source code in this
+repository. The build (see
 `.github/workflows/build.yml`) downloads the components below and compiles or copies them into the
 app. The released `.ipa` and `.deb` therefore contain them, and the full license texts are shipped
 inside the app bundle in the `licenses/` folder.

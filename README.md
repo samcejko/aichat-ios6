@@ -48,8 +48,9 @@ analytics. The API key is stored on the device only: in the Keychain when it is 
 
 ## Building (GitHub Actions)
 
-No Mac needed. Pushing to `main` runs `.github/workflows/build.yml` on Ubuntu with Theos, the
-iOS 9.3 SDK (deployment target 6.0) and Mbed TLS. Artifacts: `AIChat-<version>.ipa` and a `.deb`.
+No Mac needed. Every push to a branch and every pull request runs `.github/workflows/build.yml` on
+Ubuntu with Theos, the iOS 9.3 SDK (deployment target 6.0) and Mbed TLS.
+Artifacts: `AIChat-<version>.ipa` and a `.deb`.
 
 Local helpers (Windows PowerShell, no git required):
 
@@ -71,10 +72,20 @@ $env:GH_TOKEN = 'github_pat_...'
 - `vendor` – Mbed TLS config and platform glue (Mbed TLS and iosMath are fetched at build time)
 - `tools` – asset generator and PowerShell helpers
 
-## Third-party components
+## Contributing
+
+Pull requests are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md). You do not need a Mac: fork the
+repository, push, and GitHub Actions builds the packages for you.
+
+## License
+
+[MIT](LICENSE), copyright (c) 2026 samcejko. You may fork, modify and redistribute the app, as long
+as the copyright notice and the license text stay with every copy. A link back to this repository
+is appreciated.
 
 Mbed TLS (Apache-2.0), iosMath (MIT), the Latin Modern Math font (GUST Font License) and the Mozilla
-CA bundle from curl.se (MPL-2.0) are downloaded at build time and included in the released packages.
-See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+CA bundle from curl.se (MPL-2.0) are downloaded at build time and included in the released packages
+under their own licenses, see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 This is an independent hobby project, not affiliated with OpenRouter or Apple.

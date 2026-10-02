@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The project is MIT licensed; the license is shipped inside the app next to the third-party ones.
+- Pull requests are built by GitHub Actions; see `CONTRIBUTING.md`.
+
 ## 0.2.4 (2026-10-01)
 
 - Turning on web search (the globe in the composer) now shows a warning that OpenRouter bills web
