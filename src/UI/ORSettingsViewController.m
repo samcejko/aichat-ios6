@@ -1,4 +1,5 @@
 #import "ORSettingsViewController.h"
+#import "ORExternalOpen.h"
 #import "ORSettings.h"
 #import "ORTheme.h"
 #import "ORModelCatalog.h"
@@ -536,9 +537,9 @@ typedef NS_ENUM(NSInteger, ORSection) {
         UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
         [sheet showFromRect:cell.bounds inView:cell animated:YES];
     } else if (sec == ORSectionAbout && row == 3) {
-        [[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://openrouter.ai/keys"]];
+        [ORExternalOpen presentOpenInForURL:[NSURL URLWithString:@"https://openrouter.ai/keys"] from:self anchor:[tableView cellForRowAtIndexPath:indexPath]];
     } else if (sec == ORSectionAbout && row == 4) {
-        [[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://ko-fi.com/samcejko"]];
+        [ORExternalOpen presentOpenInForURL:[NSURL URLWithString:@"https://ko-fi.com/samcejko"] from:self anchor:[tableView cellForRowAtIndexPath:indexPath]];
     }
 }
 

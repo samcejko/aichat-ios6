@@ -239,6 +239,13 @@
 "Turn On" = "Zapnout";
 "Don't Show Again" = "Znovu nezobrazovat";
 
+/* 0.3.1 */
+"Open Link" = "Otevřít odkaz";
+"Open in Safari" = "Otevřít v Safari";
+"Open in Surfari" = "Otevřít v Surfari";
+"Copy link" = "Kopírovat odkaz";
+"Open in %@" = "Otevřít v aplikaci %@";
+
 /* 0.2.6 */
 "Support the development" = "Podpořit vývoj";
 

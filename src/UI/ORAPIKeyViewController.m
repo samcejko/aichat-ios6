@@ -1,4 +1,5 @@
 #import "ORAPIKeyViewController.h"
+#import "ORExternalOpen.h"
 #import "OROpenRouterClient.h"
 #import "ORSettings.h"
 #import "ORTheme.h"
@@ -210,7 +211,7 @@
 
 - (void)linkTapped
 {
-    [[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://openrouter.ai/keys"]];
+    [ORExternalOpen presentOpenInForURL:[NSURL URLWithString:@"https://openrouter.ai/keys"] from:self anchor:self.linkButton];
 }
 
 - (void)cancelTapped

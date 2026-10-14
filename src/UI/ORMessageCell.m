@@ -1,5 +1,6 @@
 #import "ORMessageCell.h"
 #import "ORMarkdown.h"
+#import "ORExternalOpen.h"
 #import "ORTheme.h"
 #import "ORSettings.h"
 #import "ORModelCatalog.h"
@@ -771,9 +772,29 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     return NO;
 }
 
+// The web links in the message's text (what the long-press menu's "Open Link" offers)
+- (NSArray *)messageLinks
+{
+    return [ORExternalOpen linksInText:self.message.text];
+}
+
+// The view controller showing this cell, for the link sheets
+- (UIViewController *)owningViewController
+{
+    UIResponder *r = self.nextResponder;
+    while (r && ![r isKindOfClass:[UIViewController class]]) r = r.nextResponder;
+    return (UIViewController *)r;
+}
+
+- (void)openLinkAction:(id)sender
+{
+    [ORExternalOpen presentLinkChooserForURLs:[self messageLinks] from:[self owningViewController] anchor:self.bubbleView];
+}
+
 - (BOOL)canPerformAction:(SEL)action withSender:(id)sender
 {
     if (action == @selector(copy:)) return self.message.text.length > 0;
+    if (action == @selector(openLinkAction:)) return !self.message.isStreaming && [self messageLinks].count > 0;
     if (action == @selector(regenerateMessage:)) return [self.delegate messageCell:self canRegenerateMessage:self.message];
     if (action == @selector(editMessageAction:)) return [self.delegate messageCell:self canEditMessage:self.message];
     if (action == @selector(continueMessageAction:)) return self.message.canContinue && !self.message.isStreaming;
@@ -817,6 +838,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     [self becomeFirstResponder];
     UIMenuController *menu = [UIMenuController sharedMenuController];
     menu.menuItems = @[
+        [[UIMenuItem alloc] initWithTitle:L(@"Open Link") action:@selector(openLinkAction:)],
         [[UIMenuItem alloc] initWithTitle:L(@"Edit") action:@selector(editMessageAction:)],
         [[UIMenuItem alloc] initWithTitle:L(@"Regenerate") action:@selector(regenerateMessage:)],
         [[UIMenuItem alloc] initWithTitle:L(@"Continue") action:@selector(continueMessageAction:)],
