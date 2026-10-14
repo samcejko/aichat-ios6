@@ -1,5 +1,6 @@
 #import "ORAppDelegate.h"
 #import "ORChatViewController.h"
+#import "ORExternalOpen.h"
 #import "ORChatEngine.h"
 #import "ORTheme.h"
 #import "ORTLSSocket.h"
@@ -56,10 +57,19 @@
 {
     NSString *target = [url.absoluteString substringFromIndex:@"aichat:".length];
     while ([target hasPrefix:@"/"]) target = [target substringFromIndex:1];
+    NSString *query = nil;
     NSRange q = [target rangeOfString:@"?"];
-    if (q.location != NSNotFound) target = [target substringToIndex:q.location];
+    if (q.location != NSNotFound) { query = [target substringFromIndex:q.location + 1]; target = [target substringToIndex:q.location]; }
     BOOL debug = [[NSFileManager defaultManager] fileExistsAtPath:[[ORUtils documentsPath] stringByAppendingPathComponent:@"debug"]];
     if (!debug) return YES;
+    // link?url=<percent-encoded url>: what a tapped link in a reply does (the browser chooser), for the tests
+    if ([target isEqualToString:@"link"] && [query hasPrefix:@"url="]) {
+        NSString *link = [[query substringFromIndex:4] stringByReplacingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+        UIViewController *top = self.window.rootViewController;
+        while (top.presentedViewController) top = top.presentedViewController;
+        [ORExternalOpen presentOpenInForURL:[NSURL URLWithString:link ?: @""] from:top anchor:nil];
+        return YES;
+    }
     if ([target isEqualToString:@"snapshot"]) {
         // (alerts and sheets have windows of their own, so all of them go into the picture)
         CGSize size = [UIScreen mainScreen].bounds.size;
