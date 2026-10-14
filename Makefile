@@ -61,10 +61,10 @@ AICHAT_STAGED_APP := $(THEOS_STAGING_DIR)/Applications/AIChat.app
 
 ifeq ($(THEOS_PACKAGE_SCHEME),rootless)
 # The arm64 bundle: iOS 14.0+, arm64 required, a launch screen the system draws instead of the iOS 6 launch
-# images (tools/modern_bundle.py), signed again afterwards.
+# images (tools/modern_bundle.py), signed again with the arm64 entitlements afterwards.
 after-stage::
 	python3 "$(THEOS_PROJECT_DIR)/tools/modern_bundle.py" "$(AICHAT_STAGED_APP)"
-	ldid -S "$(AICHAT_STAGED_APP)/AIChat"
+	ldid -S"$(THEOS_PROJECT_DIR)/entitlements-arm64.xml" "$(AICHAT_STAGED_APP)/AIChat"
 # The .deb is for rootless jailbreaks (iOS 15 and newer; Theos sets Architecture: iphoneos-arm64 and the /var/jb
 # prefix itself) and tells the home screen about the app when installed or removed.
 before-package::

@@ -117,11 +117,14 @@ rm -f $remote
 function Get-IPhoneContainer {
     param([string]$IPhoneHost = '')
     $out = Invoke-IPhoneScript -IPhoneHost $IPhoneHost -Script @"
-for d in /var/mobile/Containers/Data/Application/*; do
-  grep -q '$AppBundleId' "`$d/.com.apple.mobile_container_manager.metadata.plist" 2>/dev/null && echo "`$d"
-done
+c=`$(uicache -i $AppBundleId 2>/dev/null | sed -n 's/^Container Path: //p')
+if [ -n "`$c" ] && [ -d "`$c" ]; then echo "`$c"; else
+  for d in /var/mobile/Containers/Data/Application/*; do
+    grep -q '$AppBundleId' "`$d/.com.apple.mobile_container_manager.metadata.plist" 2>/dev/null && echo "`$d"
+  done
+fi
 "@
-    "$(@($out | Where-Object { $_ -like '/var/mobile/*' } | Select-Object -Last 1))".Trim()
+    "$(@($out | Where-Object { $_ -like '/var/mobile/*' -or $_ -like '/private/var/mobile/*' } | Select-Object -Last 1))".Trim()
 }
 
 function Start-IPhoneApp {
