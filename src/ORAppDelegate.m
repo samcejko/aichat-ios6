@@ -9,6 +9,7 @@
 #import "ORUtils.h"
 #import "ORModern.h"
 #import "ORCommon.h"
+#import <QuartzCore/QuartzCore.h>
 
 @interface ORAppDelegate ()
 @property (nonatomic) UIBackgroundTaskIdentifier backgroundTask;
@@ -49,8 +50,40 @@
     return [self application:app openURL:url sourceApplication:nil annotation:nil];
 }
 
+// aichat:snapshot draws every visible window into tmp/screen.png of the data container (checking the app over SSH:
+// uiopen --url aichat:snapshot, then copy the file out). The command needs a file named "debug" in Documents.
+- (BOOL)handleCommandURL:(NSURL *)url
+{
+    NSString *target = [url.absoluteString substringFromIndex:@"aichat:".length];
+    while ([target hasPrefix:@"/"]) target = [target substringFromIndex:1];
+    NSRange q = [target rangeOfString:@"?"];
+    if (q.location != NSNotFound) target = [target substringToIndex:q.location];
+    BOOL debug = [[NSFileManager defaultManager] fileExistsAtPath:[[ORUtils documentsPath] stringByAppendingPathComponent:@"debug"]];
+    if (!debug) return YES;
+    if ([target isEqualToString:@"snapshot"]) {
+        // (alerts and sheets have windows of their own, so all of them go into the picture)
+        CGSize size = [UIScreen mainScreen].bounds.size;
+        UIGraphicsBeginImageContextWithOptions(size, YES, 1.0);
+        CGContextRef ctx = UIGraphicsGetCurrentContext();
+        for (UIWindow *w in [UIApplication sharedApplication].windows) {
+            if (w.hidden || w.alpha <= 0) continue;
+            CGContextSaveGState(ctx);
+            CGContextTranslateCTM(ctx, w.frame.origin.x, w.frame.origin.y);
+            [w.layer renderInContext:ctx];
+            CGContextRestoreGState(ctx);
+        }
+        UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
+        NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"screen.png"];
+        BOOL ok = [UIImagePNGRepresentation(image) writeToFile:path atomically:YES];
+        ORLog(@"Snapshot %@: %@", ok ? @"written to" : @"failed for", path);
+    }
+    return YES;
+}
+
 - (BOOL)application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation
 {
+    if ([[url.scheme lowercaseString] isEqualToString:@"aichat"]) return [self handleCommandURL:url];
     if (![url isFileURL]) return NO;
     NSString *path = [url path];
     NSError *error = nil;

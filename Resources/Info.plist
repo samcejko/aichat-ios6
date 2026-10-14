@@ -111,6 +111,19 @@
 	</dict>
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<!-- aichat:snapshot writes a picture of the app's windows to tmp/screen.png (checking the app over SSH; it needs a
+	     file named "debug" in Documents) -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.samcejko.aichat</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>aichat</string>
+			</array>
+		</dict>
+	</array>
 	<!-- iOS 10 and newer stop the app without these (localized in InfoPlist.strings) -->
 	<key>NSCameraUsageDescription</key>
 	<string>AI Chat takes a photo to send it to the model.</string>
