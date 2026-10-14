@@ -82,7 +82,12 @@
             if (w.hidden || w.alpha <= 0) continue;
             CGContextSaveGState(ctx);
             CGContextTranslateCTM(ctx, w.frame.origin.x, w.frame.origin.y);
-            [w.layer renderInContext:ctx];
+            // (iOS 7 and newer: the view hierarchy snapshot draws the sheets' blur too; renderInContext leaves them out)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability"
+            if ([w respondsToSelector:@selector(drawViewHierarchyInRect:afterScreenUpdates:)]) [w drawViewHierarchyInRect:w.bounds afterScreenUpdates:NO];
+            else [w.layer renderInContext:ctx];
+#pragma clang diagnostic pop
             CGContextRestoreGState(ctx);
         }
         UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
