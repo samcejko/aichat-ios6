@@ -29,6 +29,10 @@ void ORModernKeepScrollViewInsets(UIScrollView *scrollView);
 // A navigation controller whose Back button has logic of its own: turns the swipe-back gesture of iOS 7+ off.
 void ORModernDisableSwipeBack(UINavigationController *nav);
 
+// iOS 7 and newer ignore [UIApplication setStatusBarHidden:] / setStatusBarStyle: and ask the view controller
+// (prefersStatusBarHidden, preferredStatusBarStyle) instead: tells it to ask again after a change.
+void ORModernStatusBarChanged(UIViewController *vc);
+
 // The part of a view covered by the notch, the home indicator or the rounded corners (iOS 11 and newer; zero
 // before that and on iOS 6). Valid once the view is in a window and laid out, i.e. in layoutSubviews and
 // viewDidLayoutSubviews - add .bottom to anything that sits on the bottom edge, .left/.right to anything that

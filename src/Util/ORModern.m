@@ -524,6 +524,11 @@ void ORModernDisableSwipeBack(UINavigationController *nav)
     if (nav && [nav respondsToSelector:@selector(interactivePopGestureRecognizer)]) nav.interactivePopGestureRecognizer.enabled = NO;
 }
 
+void ORModernStatusBarChanged(UIViewController *vc)
+{
+    if (vc && [vc respondsToSelector:@selector(setNeedsStatusBarAppearanceUpdate)]) [vc setNeedsStatusBarAppearanceUpdate];
+}
+
 void ORModernStyleNavigationBar(UINavigationBar *bar)
 {
     if (!bar || !ORModernIOS()) return;
@@ -591,6 +596,17 @@ static id ORAppearanceInside(Class<UIAppearance> cls, Class container)
     return [cls appearanceWhenContainedIn:container, nil];
 }
 
+// full-width separators, as before iOS 7
+static void ORInstallTableDefaults(void)
+{
+    [[UITableView appearance] setSeparatorInset:UIEdgeInsetsZero];
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 90000
+    if ([[UITableView appearance] respondsToSelector:@selector(setCellLayoutMarginsFollowReadableWidth:)]) {
+        [[UITableView appearance] setCellLayoutMarginsFollowReadableWidth:NO];
+    }
+#endif
+}
+
 static void ORInstallAppearance(BOOL black)
 {
     // navigation bars, toolbars, tab bars, search bars (the same artwork as the per-bar functions above)
@@ -636,17 +652,6 @@ static void ORInstallAppearance(BOOL black)
     [segment setTitleTextAttributes:OREngravedTextAttributes(13, ORRGB(60, 60, 60)) forState:UIControlStateNormal];
     [segment setTitleTextAttributes:OREmbossedTextAttributes(13) forState:UIControlStateSelected];
     ORInstallTableDefaults();
-}
-
-// full-width separators, as before iOS 7
-static void ORInstallTableDefaults(void)
-{
-    [[UITableView appearance] setSeparatorInset:UIEdgeInsetsZero];
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 90000
-    if ([[UITableView appearance] respondsToSelector:@selector(setCellLayoutMarginsFollowReadableWidth:)]) {
-        [[UITableView appearance] setCellLayoutMarginsFollowReadableWidth:NO];
-    }
-#endif
 }
 
 #pragma mark - iOS 13: full-screen modals and rounded grouped tables
