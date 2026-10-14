@@ -65,9 +65,12 @@
     // link?url=<percent-encoded url>: what a tapped link in a reply does (the browser chooser), for the tests
     if ([target isEqualToString:@"link"] && [query hasPrefix:@"url="]) {
         NSString *link = [[query substringFromIndex:4] stringByReplacingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
-        UIViewController *top = self.window.rootViewController;
-        while (top.presentedViewController) top = top.presentedViewController;
-        [ORExternalOpen presentOpenInForURL:[NSURL URLWithString:link ?: @""] from:top anchor:nil];
+        // (a moment later: the URL arrives before the app is active again, and newer iOS ignore openURL: and sheets then)
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.7 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            UIViewController *top = self.window.rootViewController;
+            while (top.presentedViewController) top = top.presentedViewController;
+            [ORExternalOpen presentOpenInForURL:[NSURL URLWithString:link ?: @""] from:top anchor:nil];
+        });
         return YES;
     }
     if ([target isEqualToString:@"snapshot"]) {
