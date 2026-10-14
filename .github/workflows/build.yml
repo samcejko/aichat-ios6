@@ -190,7 +190,8 @@ jobs:
           export PATH="$THEOS/toolchain/linux/iphone/bin:$THEOS/bin:$PATH"
           if [ -n "${{ matrix.scheme }}" ]; then export THEOS_PACKAGE_SCHEME="${{ matrix.scheme }}"; fi
           make clean || true
-          make package FINALPACKAGE=1 -j"$(nproc)" 2>&1 | tee build.log
+          # (-k: every file is compiled even after one fails, so one run shows every compile error)
+          make package FINALPACKAGE=1 -j"$(nproc)" -k 2>&1 | tee build.log
           APP=$(find .theos/_ -type d -name AIChat.app | head -n1)
           test -n "$APP"
           echo "APP=$APP" >> "$GITHUB_ENV"
