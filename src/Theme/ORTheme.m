@@ -357,6 +357,7 @@ static UIImage *ORBarBackgroundImage(UIColor *top, UIColor *bottom, UIColor *lin
     tableView.backgroundColor = grouped ? [self tableBackgroundColor] : [self cellBackgroundColor];
     tableView.separatorColor = [self separatorColor];
     tableView.indicatorStyle = self.dark ? UIScrollViewIndicatorStyleWhite : UIScrollViewIndicatorStyleDefault;
+    ORModernSetTableViewDark(tableView, [self isDark]);
 }
 
 - (void)styleCell:(UITableViewCell *)cell
