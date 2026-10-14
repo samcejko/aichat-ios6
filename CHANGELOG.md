@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.6 (2026-10-14)
+
+- Settings → About has a "Support the development" row that opens the author's Ko-fi page. The app stays free.
+- AI Chat is in the Cydia repository `http://samcejko.eu/repo/` now: add it as a source in Cydia to get updates.
+
 ## 0.2.5 (2026-10-02)
 
 - Settings > About shows the author.

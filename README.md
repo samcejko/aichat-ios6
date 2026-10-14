@@ -35,6 +35,10 @@ tried on a real iPhone yet.
 
 ## Installing on the device
 
+The easy way: add the Cydia repository `http://samcejko.eu/repo/` (Cydia → Sources → Edit → Add) and install AI Chat
+from there; updates then come through Cydia. The app is free; if it is useful to you, you can support the development
+at [ko-fi.com/samcejko](https://ko-fi.com/samcejko). By hand:
+
 1. Cydia: **AppSync Unified** (repo `https://cydia.akemi.ai/`) and **IPA Installer Console** (BigBoss),
    plus OpenSSH for the helper scripts.
 2. Copy the `.ipa` to the device and run `ipainstaller -f AIChat.ipa`, or use iFunBox / 3uTools.

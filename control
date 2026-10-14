@@ -1,6 +1,6 @@
 Package: com.samcejko.aichat
 Name: AI Chat
-Version: 0.2.5
+Version: 0.2.6
 Architecture: iphoneos-arm
 Description: OpenRouter AI chat client for iOS 6 (universal)
 Maintainer: samcejko

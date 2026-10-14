@@ -239,5 +239,8 @@
 "Turn On" = "Zapnout";
 "Don't Show Again" = "Znovu nezobrazovat";
 
+/* 0.2.6 */
+"Support the development" = "Podpořit vývoj";
+
 /* 0.2.5 */
 "Author" = "Autor";
