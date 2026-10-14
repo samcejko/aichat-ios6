@@ -38,10 +38,12 @@ ifeq ($(THEOS_PACKAGE_SCHEME),rootless)
 AIChat_FRAMEWORKS += PhotosUI
 endif
 
-# Flags for every C-family file (also the vendored mbedTLS sources)
+# Flags for every C-family file (also the vendored mbedTLS sources). TargetConditionals.h comes first because iosMath
+# tests TARGET_OS_IPHONE before including it, which the iOS 16.5 SDK treats as an error.
 AIChat_CFLAGS := -Isrc -Isrc/Net -Isrc/Model -Isrc/Chat -Isrc/Markdown -Isrc/UI -Isrc/Theme -Isrc/Util \
                  -Ivendor -Ivendor/mbedtls/include -Ivendor/mbedtls/library \
                  -Ivendor/iosMath/iosMath/lib -Ivendor/iosMath/iosMath/render -Ivendor/iosMath/iosMath/render/internal \
+                 -include TargetConditionals.h \
                  -Os -fvisibility=hidden \
                  -Wall -Wno-unused-variable -Wno-unused-function -Wno-unused-but-set-variable \
                  -Wno-deprecated-declarations -Wno-unknown-warning-option \
