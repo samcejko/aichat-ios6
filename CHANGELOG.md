@@ -4,7 +4,7 @@
 
 - A second build for 64-bit devices with iOS 14–17 (iPhone X and newer), from the same source tree: the `.deb` with
   `iphoneos-arm64` in its name for rootless jailbreaks (palera1n, Dopamine; it installs into `/var/jb`) and
-  `AIChat-<version>-arm64.ipa` for TrollStore. Not tried on a device yet.
+  `AIChat-<version>-arm64.ipa` for TrollStore. Tried on an iPhone X with iOS 16.
 - On iOS 7 and newer the app draws the glossy iOS 6 bars, bar buttons, switches and rounded grouped tables itself,
   stays in light mode and opens its screens full screen, so it looks the same as on the iPad 2. The composer and the
   other screens keep clear of the notch and the home indicator; the launch screen is the app icon.
