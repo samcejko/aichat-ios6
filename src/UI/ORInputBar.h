@@ -22,6 +22,9 @@
 @property (nonatomic) BOOL busy;
 @property (nonatomic) BOOL webSearchOn;
 @property (nonatomic, strong) NSArray *attachments;
+// The part of the bar under the home indicator (bottom) and beside the notch (left/right) on iOS 11 and newer:
+// the controls keep clear of it, the background still covers it. Zero on iOS 6. Counted into preferredHeight.
+@property (nonatomic) UIEdgeInsets safeInsets;
 
 - (NSString *)text;
 - (void)setText:(NSString *)text;

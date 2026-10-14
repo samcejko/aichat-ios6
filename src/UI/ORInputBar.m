@@ -168,7 +168,14 @@ static const NSInteger kMaxLines = 5;
 - (CGFloat)preferredHeight
 {
     CGFloat strip = self.attachments.count ? kStripHeight : 0;
-    return strip + MAX(kBarMinHeight, [self textHeight] + 12);
+    return strip + MAX(kBarMinHeight, [self textHeight] + 12) + self.safeInsets.bottom;
+}
+
+- (void)setSafeInsets:(UIEdgeInsets)safeInsets
+{
+    if (UIEdgeInsetsEqualToEdgeInsets(safeInsets, _safeInsets)) return;
+    _safeInsets = safeInsets;
+    [self setNeedsLayout];
 }
 
 - (void)textViewDidChange:(UITextView *)textView
@@ -280,19 +287,20 @@ static const NSInteger kMaxLines = 5;
 {
     [super layoutSubviews];
     CGFloat w = self.bounds.size.width;
-    CGFloat h = self.bounds.size.height;
+    CGFloat left = self.safeInsets.left, right = self.safeInsets.right;
+    CGFloat h = self.bounds.size.height - self.safeInsets.bottom;   // the controls' bottom edge
     CGFloat stripH = self.attachments.count ? kStripHeight : 0;
-    self.strip.frame = CGRectMake(0, 0, w, stripH);
-    self.background.frame = CGRectMake(0, stripH, w, h - stripH);
+    self.strip.frame = CGRectMake(left, 0, w - left - right, stripH);
+    self.background.frame = CGRectMake(0, stripH, w, self.bounds.size.height - stripH);
 
     CGFloat barH = h - stripH;
-    self.attachButton.frame = CGRectMake(6, h - 37, 30, 30);
-    self.webButton.frame = CGRectMake(38, h - 37, 30, 30);
+    self.attachButton.frame = CGRectMake(left + 6, h - 37, 30, 30);
+    self.webButton.frame = CGRectMake(left + 38, h - 37, 30, 30);
     CGFloat sendW = 62;
-    self.sendButton.frame = CGRectMake(w - 8 - sendW, h - 38, sendW, 31);
+    self.sendButton.frame = CGRectMake(w - right - 8 - sendW, h - 38, sendW, 31);
 
-    CGFloat fieldX = 72;
-    CGFloat fieldW = w - fieldX - sendW - 16;
+    CGFloat fieldX = left + 72;
+    CGFloat fieldW = w - fieldX - sendW - 16 - right;
     CGFloat fieldH = barH - 12;
     self.fieldBackground.frame = CGRectMake(fieldX, stripH + 6, fieldW, fieldH);
     self.textView.frame = CGRectMake(4, 0, fieldW - 8, fieldH);

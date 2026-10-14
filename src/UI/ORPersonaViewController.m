@@ -203,15 +203,17 @@
 - (void)viewWillLayoutSubviews
 {
     [super viewWillLayoutSubviews];
+    UIEdgeInsets safe = ORSafeAreaInsets(self.view);   // the notch and the home indicator (iOS 11+)
     CGFloat w = self.view.bounds.size.width;
-    CGFloat h = self.view.bounds.size.height;
+    CGFloat h = self.view.bounds.size.height - safe.bottom;
     CGFloat m = 16;
-    self.nameLabel.frame = CGRectMake(m, 12, w - 2 * m, 18);
-    self.nameField.frame = CGRectMake(m, 32, w - 2 * m, 36);
-    self.promptLabel.frame = CGRectMake(m, 80, w - 2 * m, 18);
+    CGFloat x = m + safe.left, cw = w - 2 * m - safe.left - safe.right;
+    self.nameLabel.frame = CGRectMake(x, 12, cw, 18);
+    self.nameField.frame = CGRectMake(x, 32, cw, 36);
+    self.promptLabel.frame = CGRectMake(x, 80, cw, 18);
     CGFloat bottom = h - m;
-    if (self.promptView.contentInset.bottom > 0) bottom = h - self.promptView.contentInset.bottom - m;
-    self.promptView.frame = CGRectMake(m, 100, w - 2 * m, MAX(80, bottom - 100));
+    if (self.promptView.contentInset.bottom > 0) bottom = self.view.bounds.size.height - self.promptView.contentInset.bottom - m;
+    self.promptView.frame = CGRectMake(x, 100, cw, MAX(80, bottom - 100));
 }
 
 - (void)keyboardChanged:(NSNotification *)n

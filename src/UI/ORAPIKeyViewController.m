@@ -115,7 +115,8 @@
 {
     [super viewWillLayoutSubviews];
     CGFloat w = self.view.bounds.size.width;
-    CGFloat margin = ORIsPad() ? 40 : 16;
+    UIEdgeInsets safe = ORSafeAreaInsets(self.view);   // the notch in landscape (iOS 11+)
+    CGFloat margin = (ORIsPad() ? 40 : 16) + MAX(safe.left, safe.right);
     CGFloat cw = w - 2 * margin;
     CGFloat y = 20;
     CGSize introSize = [self.intro.text sizeWithFont:self.intro.font constrainedToSize:CGSizeMake(cw, 400) lineBreakMode:NSLineBreakByWordWrapping];

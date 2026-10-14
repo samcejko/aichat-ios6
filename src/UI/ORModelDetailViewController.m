@@ -68,7 +68,8 @@
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    CGFloat width = self.tableView.bounds.size.width - (ORIsPad() ? 90 : 40);
+    // (the margins of grouped cells: iOS 6's, or the rounded groups' of iOS 13+ / none of iOS 7-12)
+    CGFloat width = self.tableView.bounds.size.width - ORModernGroupedCellMargins(ORIsPad() ? 90 : 40);
     if (indexPath.section == 1) {
         CGSize s = [self.model.modelDescription sizeWithFont:[UIFont systemFontOfSize:14] constrainedToSize:CGSizeMake(width, 4000) lineBreakMode:NSLineBreakByWordWrapping];
         return MAX(44, s.height + 24);

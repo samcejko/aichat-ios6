@@ -113,7 +113,17 @@ def make_launch(w, h):
     return img
 
 
+def make_logo(size):
+    """The icon with rounded corners: the launch screen of the arm64 build (iOS 14+ draws it on a plain background)."""
+    icon = make_icon(size).convert("RGBA")
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, size - 1, size - 1), radius=int(size * 0.2237), fill=255)
+    icon.putalpha(mask)
+    return icon
+
+
 ICONS = {
+    # iOS 6
     "Icon.png": 57,
     "Icon@2x.png": 114,
     "Icon-72.png": 72,
@@ -122,6 +132,18 @@ ICONS = {
     "Icon-Small@2x.png": 58,
     "Icon-Small-50.png": 50,
     "Icon-Small-50@2x.png": 100,
+    # iOS 7 and newer (the arm64 build; iOS 6 ignores sizes it does not know)
+    "Icon-60@2x.png": 120,
+    "Icon-60@3x.png": 180,
+    "Icon-76.png": 76,
+    "Icon-76@2x.png": 152,
+    "Icon-83.5@2x.png": 167,
+}
+
+LOGOS = {
+    "LaunchLogo.png": 100,
+    "LaunchLogo@2x.png": 200,
+    "LaunchLogo@3x.png": 300,
 }
 
 LAUNCH = {
@@ -141,3 +163,7 @@ for name, size in ICONS.items():
 for name, (w, h) in LAUNCH.items():
     make_launch(w, h).save(os.path.join(OUT, name), "PNG")
     print("launch", name)
+
+for name, size in LOGOS.items():
+    make_logo(size).save(os.path.join(OUT, name), "PNG")
+    print("logo", name)

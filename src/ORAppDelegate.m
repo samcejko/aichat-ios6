@@ -7,6 +7,7 @@
 #import "ORSettings.h"
 #import "ORAttachment.h"
 #import "ORUtils.h"
+#import "ORModern.h"
 #import "ORCommon.h"
 
 @interface ORAppDelegate ()
@@ -20,6 +21,8 @@
 {
     ORLog(@"AIChat %@ starting on %@ (iOS %@)", [ORUtils appVersion], [UIDevice currentDevice].model, [UIDevice currentDevice].systemVersion);
     self.backgroundTask = UIBackgroundTaskInvalid;
+    // iOS 7 and newer (the arm64 build): the iOS 6 look of the bars, full-screen modals; nothing on iOS 6
+    ORModernSetUp([[ORTheme shared] barStyle]);
     [ORTLSSocket warmUp];
     [[ORModelCatalog shared] loadCache];
 
@@ -38,6 +41,12 @@
     [application cancelAllLocalNotifications];
     application.applicationIconBadgeNumber = 0;
     return YES;
+}
+
+// iOS 9 and newer ask this way ("Open in…" from another app)
+- (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary *)options
+{
+    return [self application:app openURL:url sourceApplication:nil annotation:nil];
 }
 
 - (BOOL)application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation
@@ -63,6 +72,8 @@
 - (void)engineStarted:(NSNotification *)n
 {
     self.engineBusy = YES;
+    // (the reply may finish in the background: iOS 8 and newer show its notification only once allowed)
+    ORModernRequestNotificationPermission();
     if ([UIApplication sharedApplication].applicationState != UIApplicationStateActive) [self beginBackgroundTaskIfNeeded];
 }
 

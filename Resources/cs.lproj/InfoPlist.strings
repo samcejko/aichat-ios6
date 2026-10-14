@@ -1,0 +1,5 @@
+/* AI Chat – systémové dotazy na oprávnění (iOS 10 a novější). */
+
+"NSCameraUsageDescription" = "AI Chat vyfotí snímek a pošle ho modelu.";
+"NSPhotoLibraryUsageDescription" = "AI Chat připojí vybrané fotky ke zprávě.";
+"NSPhotoLibraryAddUsageDescription" = "AI Chat ukládá obrázky z odpovědí do vašich fotek.";

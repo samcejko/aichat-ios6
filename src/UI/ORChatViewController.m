@@ -16,15 +16,24 @@
 #import "ORStore.h"
 #import "ORTheme.h"
 #import "ORUtils.h"
+#import "ORModern.h"
 #import "ORCommon.h"
 #import <QuickLook/QuickLook.h>
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 140000
+// iOS 14 and newer (the arm64 build): the system's multi-select photo picker, no photo permission needed
+#import <PhotosUI/PhotosUI.h>
+#endif
 
 static NSString * const kCellId = @"msg";
 static const NSInteger kWebSearchAlertTag = 4201;
 
 @interface ORChatViewController () <UITableViewDataSource, UITableViewDelegate, ORChatEngineDelegate, ORMessageCellDelegate,
                                     ORInputBarDelegate, UIActionSheetDelegate, UIAlertViewDelegate, UIImagePickerControllerDelegate,
-                                    UINavigationControllerDelegate, UIPopoverControllerDelegate, QLPreviewControllerDataSource>
+                                    UINavigationControllerDelegate, UIPopoverControllerDelegate, QLPreviewControllerDataSource
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 140000
+                                    , PHPickerViewControllerDelegate
+#endif
+                                    >
 @property (nonatomic, strong) ORChatEngine *engine;
 @property (nonatomic, strong) UITableView *tableView;
 @property (nonatomic, strong) ORInputBar *inputBar;
@@ -155,12 +164,22 @@ static const NSInteger kWebSearchAlertTag = 4201;
 - (void)layoutChrome
 {
     CGRect b = self.view.bounds;
+    // the notch and the home indicator (iOS 11+): the composer keeps clear of them unless the keyboard covers them
+    UIEdgeInsets safe = ORSafeAreaInsets(self.view);
+    self.inputBar.safeInsets = UIEdgeInsetsMake(0, safe.left, self.keyboardOverlap > 0 ? 0 : safe.bottom, safe.right);
     CGFloat inputH = [self.inputBar preferredHeight];
     CGFloat bottom = b.size.height - self.keyboardOverlap;
     self.inputBar.frame = CGRectMake(0, bottom - inputH, b.size.width, inputH);
     CGRect tf = CGRectMake(0, 0, b.size.width, bottom - inputH);
     if (!CGRectEqualToRect(self.tableView.frame, tf)) self.tableView.frame = tf;
-    self.emptyLabel.frame = CGRectMake(24, tf.size.height * 0.35, tf.size.width - 48, 80);
+    self.emptyLabel.frame = CGRectMake(24 + safe.left, tf.size.height * 0.35, tf.size.width - 48 - safe.left - safe.right, 80);
+}
+
+// The width the message cells lay out in: on iOS 11+ the table keeps the cells' content clear of the notch itself
+- (CGFloat)messageLayoutWidth
+{
+    UIEdgeInsets safe = ORSafeAreaInsets(self.tableView);
+    return self.tableView.bounds.size.width - safe.left - safe.right;
 }
 
 - (void)willAnimateRotationToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration
@@ -539,14 +558,14 @@ static const NSInteger kWebSearchAlertTag = 4201;
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    return [ORMessageCell heightForMessage:[self messageAtRow:indexPath.row] width:tableView.bounds.size.width];
+    return [ORMessageCell heightForMessage:[self messageAtRow:indexPath.row] width:[self messageLayoutWidth]];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
     ORMessageCell *cell = [tableView dequeueReusableCellWithIdentifier:kCellId forIndexPath:indexPath];
     cell.delegate = self;
-    [cell configureWithMessage:[self messageAtRow:indexPath.row] width:tableView.bounds.size.width];
+    [cell configureWithMessage:[self messageAtRow:indexPath.row] width:[self messageLayoutWidth]];
     return cell;
 }
 
@@ -571,7 +590,7 @@ static const NSInteger kWebSearchAlertTag = 4201;
     NSIndexPath *ip = [self indexPathForMessage:message];
     if (!ip) return;
     BOOL wasNear = [self isNearBottom];
-    CGFloat width = self.tableView.bounds.size.width;
+    CGFloat width = [self messageLayoutWidth];
     ORMessageCell *cell = (ORMessageCell *)[self.tableView cellForRowAtIndexPath:ip];
     if (cell) {
         CGFloat oldH = cell.bounds.size.height;
@@ -793,7 +812,13 @@ static const NSInteger kWebSearchAlertTag = 4201;
     [sheet addButtonWithTitle:L(@"Photos")];
     if ([UIImagePickerController isSourceTypeAvailable:UIImagePickerControllerSourceTypeCamera]) [sheet addButtonWithTitle:L(@"Take Photo")];
     [sheet addButtonWithTitle:L(@"Choose File")];
-    if ([UIPasteboard generalPasteboard].image) [sheet addButtonWithTitle:L(@"Paste Image")];
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 100000
+    // (asking for the image itself would show iOS 16's "Allow Paste" question every time the menu opens)
+    BOOL pasteboardHasImage = [UIPasteboard generalPasteboard].hasImages;
+#else
+    BOOL pasteboardHasImage = [UIPasteboard generalPasteboard].image != nil;
+#endif
+    if (pasteboardHasImage) [sheet addButtonWithTitle:L(@"Paste Image")];
     NSDictionary *persona = [[ORSettings shared] activePersona];
     NSString *personaTitle = [NSString stringWithFormat:@"%@: %@", L(@"Persona"), persona[@"name"] ?: L(@"No persona")];
     [sheet addButtonWithTitle:personaTitle];
@@ -829,8 +854,52 @@ static const NSInteger kWebSearchAlertTag = 4201;
     }
 }
 
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 140000
+// iOS 14 and newer: the system picker (multi-select, runs outside the app, needs no photo permission)
+- (void)pickPhotosWithSystemPicker
+{
+    PHPickerConfiguration *config = [[PHPickerConfiguration alloc] init];
+    config.selectionLimit = 8;
+    config.filter = [PHPickerFilter imagesFilter];
+    PHPickerViewController *picker = [[PHPickerViewController alloc] initWithConfiguration:config];
+    picker.delegate = self;
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+- (void)picker:(PHPickerViewController *)picker didFinishPicking:(NSArray<PHPickerResult *> *)results
+{
+    [picker dismissViewControllerAnimated:YES completion:nil];
+    if (!results.count) return;
+    // the images arrive one by one, in any order: slots keep the order the user picked them in
+    NSMutableArray *slots = [NSMutableArray arrayWithCapacity:results.count];
+    for (NSUInteger i = 0; i < results.count; i++) [slots addObject:[NSNull null]];
+    dispatch_group_t group = dispatch_group_create();
+    [results enumerateObjectsUsingBlock:^(PHPickerResult *result, NSUInteger idx, BOOL *stop) {
+        if (![result.itemProvider canLoadObjectOfClass:[UIImage class]]) return;
+        dispatch_group_enter(group);
+        [result.itemProvider loadObjectOfClass:[UIImage class] completionHandler:^(id<NSItemProviderReading> object, NSError *error) {
+            if ([object isKindOfClass:[UIImage class]]) {
+                @synchronized(slots) { slots[idx] = object; }
+            } else {
+                ORLog(@"photo %lu could not be loaded: %@", (unsigned long)idx, error);
+            }
+            dispatch_group_leave(group);
+        }];
+    }];
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+        NSMutableArray *images = [NSMutableArray array];
+        for (id slot in slots) if ([slot isKindOfClass:[UIImage class]]) [images addObject:slot];
+        if (images.count) [self addImageAttachments:images];
+        else [ORUtils alertWithTitle:L(@"Could not add image") message:L(@"Some photos could not be processed.")];
+    });
+}
+#endif
+
 - (void)pickPhotos
 {
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 140000
+    if (ORModernIOS()) { [self pickPhotosWithSystemPicker]; return; }
+#endif
     ORPhotoPickerViewController *picker = [[ORPhotoPickerViewController alloc] init];
     __weak ORChatViewController *weakSelf = self;
     picker.completion = ^(NSArray *images) {

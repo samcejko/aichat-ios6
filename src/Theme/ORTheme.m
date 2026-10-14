@@ -1,5 +1,6 @@
 #import "ORTheme.h"
 #import "ORSettings.h"
+#import "ORModern.h"
 #import "ORCommon.h"
 
 static UIColor *RGB(NSInteger r, NSInteger g, NSInteger b)
@@ -331,13 +332,15 @@ static UIImage *ORBarBackgroundImage(UIColor *top, UIColor *bottom, UIColor *lin
 #pragma mark - UIKit
 
 - (UIBarStyle)barStyle { return self.dark ? UIBarStyleBlack : UIBarStyleDefault; }
-- (UIStatusBarStyle)statusBarStyle { return self.dark ? UIStatusBarStyleBlackOpaque : UIStatusBarStyleDefault; }
+// (on iOS 7 and newer the status bar lies over the bar, which is dark in both themes: light text there)
+- (UIStatusBarStyle)statusBarStyle { return ORModernStatusBarStyle(self.dark ? UIStatusBarStyleBlackOpaque : UIStatusBarStyleDefault); }
 
 - (void)applyToNavigationBar:(UINavigationBar *)bar
 {
     bar.barStyle = [self barStyle];
     bar.translucent = NO;
     bar.tintColor = nil;
+    ORModernStyleNavigationBar(bar);   // iOS 7+: the glossy iOS 6 bar UIKit no longer draws
 }
 
 - (void)applyToToolbar:(UIToolbar *)bar
@@ -345,6 +348,7 @@ static UIImage *ORBarBackgroundImage(UIColor *top, UIColor *bottom, UIColor *lin
     bar.barStyle = [self barStyle];
     bar.translucent = NO;
     bar.tintColor = nil;
+    ORModernStyleToolbar(bar);
 }
 
 - (void)applyToTableView:(UITableView *)tableView grouped:(BOOL)grouped
@@ -375,6 +379,7 @@ static UIImage *ORBarBackgroundImage(UIColor *top, UIColor *bottom, UIColor *lin
 {
     bar.barStyle = [self barStyle];
     bar.tintColor = nil;
+    ORModernStyleSearchBar(bar);
 }
 
 - (void)applyToView:(UIView *)view

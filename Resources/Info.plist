@@ -24,9 +24,9 @@
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.2.6</string>
+	<string>0.3.0</string>
 	<key>CFBundleVersion</key>
-	<string>8</string>
+	<string>9</string>
 	<key>CFBundleSupportedPlatforms</key>
 	<array>
 		<string>iPhoneOS</string>
@@ -61,6 +61,12 @@
 	</array>
 	<key>UIStatusBarStyle</key>
 	<string>UIStatusBarStyleDefault</string>
+	<!-- iOS 7 and newer (the arm64 build): the app stays in light mode (it has its own themes) and takes
+	     the whole iPad screen, as on iOS 6 -->
+	<key>UIUserInterfaceStyle</key>
+	<string>Light</string>
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<key>UIPrerenderedIcon</key>
 	<false/>
 	<key>CFBundleIconFiles</key>
@@ -73,6 +79,11 @@
 		<string>Icon-Small@2x.png</string>
 		<string>Icon-Small-50.png</string>
 		<string>Icon-Small-50@2x.png</string>
+		<string>Icon-60@2x.png</string>
+		<string>Icon-60@3x.png</string>
+		<string>Icon-76.png</string>
+		<string>Icon-76@2x.png</string>
+		<string>Icon-83.5@2x.png</string>
 	</array>
 	<key>CFBundleIcons</key>
 	<dict>
@@ -88,6 +99,11 @@
 				<string>Icon-Small@2x.png</string>
 				<string>Icon-Small-50.png</string>
 				<string>Icon-Small-50@2x.png</string>
+				<string>Icon-60@2x.png</string>
+				<string>Icon-60@3x.png</string>
+				<string>Icon-76.png</string>
+				<string>Icon-76@2x.png</string>
+				<string>Icon-83.5@2x.png</string>
 			</array>
 			<key>UIPrerenderedIcon</key>
 			<false/>
@@ -95,6 +111,13 @@
 	</dict>
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<!-- iOS 10 and newer stop the app without these (localized in InfoPlist.strings) -->
+	<key>NSCameraUsageDescription</key>
+	<string>AI Chat takes a photo to send it to the model.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>AI Chat attaches the photos you pick to your message.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>AI Chat saves images from replies to your photos.</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

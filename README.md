@@ -1,6 +1,8 @@
 # AI Chat for iOS 6
 
-Universal (iPhone + iPad) OpenRouter chat client for **jailbroken iOS 6.x** devices (armv7, e.g. iPad 2).
+Universal (iPhone + iPad) OpenRouter chat client for **jailbroken iOS 6.x** devices (armv7, e.g. iPad 2),
+with a second build for **64-bit devices with iOS 14–17** (iPhone X and newer: rootless jailbreaks and
+TrollStore) that keeps the glossy iOS 6 look.
 Bring your own [OpenRouter API key](https://openrouter.ai/keys) and chat with any of the models,
 including the free ones.
 
@@ -10,10 +12,16 @@ HTTP/1.1 client, so everything runs on the device without any relay server.
 
 ## Download
 
-Get the latest `.ipa` or `.deb` from the [Releases](../../releases/latest) page.
+Get the latest packages from the [Releases](../../releases/latest) page:
+
+| Device | Package |
+| --- | --- |
+| iOS 6.x, 32-bit (iPad 2, iPhone 4S, …) | `AIChat-<version>.ipa` or `com.samcejko.aichat_<version>_iphoneos-arm.deb` |
+| iOS 14–17, 64-bit, rootless jailbreak (palera1n, Dopamine) | `com.samcejko.aichat_<version>_iphoneos-arm64.deb` |
+| iOS 14–17, 64-bit, TrollStore | `AIChat-<version>-arm64.ipa` |
 
 Tested on an iPad 2 (iPad2,2) with iOS 6.1.3. The iPhone layout is implemented but has not been
-tried on a real iPhone yet.
+tried on a real iPhone yet; the 64-bit build has not been tried on a device yet either.
 
 ## Features
 
@@ -44,6 +52,10 @@ at [ko-fi.com/samcejko](https://ko-fi.com/samcejko). By hand:
 2. Copy the `.ipa` to the device and run `ipainstaller -f AIChat.ipa`, or use iFunBox / 3uTools.
    The `.deb` works too (`dpkg -i`, then `uicache`) and installs into `/Applications`.
 
+On iOS 14–17 (64-bit): with a rootless jailbreak add the same repository in Sileo or Zebra, or install the
+`iphoneos-arm64` `.deb` with `dpkg -i` (it goes into `/var/jb/Applications`); without a jailbreak open the
+`-arm64.ipa` in [TrollStore](https://github.com/opa334/TrollStore). The same app, the same iOS 6 look.
+
 ## Privacy
 
 Requests go straight from the device to `openrouter.ai`; there is no server in between and no
@@ -53,17 +65,25 @@ analytics. The API key is stored on the device only: in the Keychain when it is 
 ## Building (GitHub Actions)
 
 No Mac needed. Every push to a branch and every pull request runs `.github/workflows/build.yml` on
-Ubuntu with Theos, the iOS 9.3 SDK (deployment target 6.0) and Mbed TLS.
-Artifacts: `AIChat-<version>.ipa` and a `.deb`.
+Ubuntu with Theos and Mbed TLS, twice from the same sources:
+
+- `ios6-armv7`: the iOS 9.3 SDK, deployment target 6.0 → `AIChat-<version>.ipa` and the `iphoneos-arm` `.deb`;
+- `ios14-arm64`: `make package THEOS_PACKAGE_SCHEME=rootless`, the iOS 16.5 SDK, deployment target 14.0 →
+  `AIChat-<version>-arm64.ipa` (TrollStore) and the `iphoneos-arm64` `.deb` (rootless, `/var/jb`).
+
+The differences live in `src/Util/ORModern.m` (safe areas, the iOS 6 look of the bars on iOS 7 and newer,
+full-screen modals) and in `tools/modern_bundle.py` (the arm64 bundle's Info.plist and launch screen).
 
 Local helpers (Windows PowerShell, no git required):
 
 ```powershell
 $env:GH_TOKEN = 'github_pat_...'
 .\tools\gh-push.ps1 -Repo user/aichat-ios6 -Message "change"        # push via REST API
-.\tools\gh-build.ps1 -Repo user/aichat-ios6 -Download -Install       # wait, fetch, install over SSH
-.\tools\gh-release.ps1 -Repo user/aichat-ios6 -Tag v0.2.4 -AssetDir .\packages\run-123   # publish a release
-. .\tools\ipad.ps1; Get-IPadCrashLogs; Get-IPadSyslog                 # debugging
+.\tools\gh-build.ps1 -Repo user/aichat-ios6 -Download -Install       # wait, fetch both builds, install on the iPad
+.\tools\gh-build.ps1 -Repo user/aichat-ios6 -Download -InstallIPhone # ... or the arm64 .deb on the iPhone
+.\tools\gh-release.ps1 -Repo user/aichat-ios6 -Tag v0.3.0 -AssetDir .\packages\run-123   # publish a release
+. .\tools\ipad.ps1; Get-IPadCrashLogs; Get-IPadSyslog                 # debugging (iPad)
+. .\tools\iphone.ps1; Get-IPhoneCrashLogs; Get-IPhoneLog              # debugging (iPhone)
 ```
 
 ## Project layout
@@ -73,8 +93,9 @@ $env:GH_TOKEN = 'github_pat_...'
 - `src/Model` – settings, models catalog, messages, attachments, storage
 - `src/Markdown` – Markdown and LaTeX to attributed-string blocks
 - `src/UI` – chat, composer, pickers, settings
+- `src/Util/ORModern.m` – what iOS 7 and newer need to look and behave like iOS 6 (no-op on iOS 6)
 - `vendor` – Mbed TLS config and platform glue (Mbed TLS and iosMath are fetched at build time)
-- `tools` – asset generator and PowerShell helpers
+- `tools` – asset generator, the arm64 bundle script and PowerShell helpers
 
 ## Contributing
 

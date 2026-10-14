@@ -1,0 +1,5 @@
+/* AI Chat – the system's permission questions (iOS 10 and newer). */
+
+"NSCameraUsageDescription" = "AI Chat takes a photo to send it to the model.";
+"NSPhotoLibraryUsageDescription" = "AI Chat attaches the photos you pick to your message.";
+"NSPhotoLibraryAddUsageDescription" = "AI Chat saves images from replies to your photos.";

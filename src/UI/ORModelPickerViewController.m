@@ -118,14 +118,19 @@
 - (void)viewWillLayoutSubviews
 {
     [super viewWillLayoutSubviews];
-    CGFloat w = self.view.bounds.size.width;
+    // (the table header is not kept clear of the notch by the table itself: the side insets do it here)
+    UIEdgeInsets safe = ORSafeAreaInsets(self.view);
+    CGFloat left = safe.left, w = self.view.bounds.size.width - safe.left - safe.right;
     CGFloat y = 44;
-    self.freeSwitch.frame = CGRectMake(10, y + 6, 79, 27);
-    self.freeLabel.frame = CGRectMake(96, y + 6, 90, 27);
-    self.imagesSwitch.frame = CGRectMake(w / 2 + 4, y + 6, 79, 27);
-    self.imagesLabel.frame = CGRectMake(w / 2 + 90, y + 6, w / 2 - 96, 27);
-    self.sortControl.frame = CGRectMake(10, y + 42, w - 20, 30);
-    self.emptyLabel.frame = CGRectMake(20, 160, w - 40, 80);
+    CGSize sw = [self.freeSwitch sizeThatFits:CGSizeZero];   // 79x27 on iOS 6, 51x31 from iOS 7 on
+    if (sw.width < 40) sw = CGSizeMake(79, 27);
+    CGFloat sy = y + 6 + (27 - sw.height) / 2;
+    self.freeSwitch.frame = CGRectMake(left + 10, sy, sw.width, sw.height);
+    self.freeLabel.frame = CGRectMake(left + 10 + sw.width + 7, y + 6, 90, 27);
+    self.imagesSwitch.frame = CGRectMake(left + w / 2 + 4, sy, sw.width, sw.height);
+    self.imagesLabel.frame = CGRectMake(left + w / 2 + 4 + sw.width + 7, y + 6, w / 2 - sw.width - 17, 27);
+    self.sortControl.frame = CGRectMake(left + 10, y + 42, w - 20, 30);
+    self.emptyLabel.frame = CGRectMake(left + 20, 160, w - 40, 80);
 }
 
 - (void)applyTheme
