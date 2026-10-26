@@ -51,7 +51,7 @@ AIChat_CFLAGS := -Isrc -Isrc/Net -Isrc/Model -Isrc/Chat -Isrc/Markdown -Isrc/UI 
 # own sources by the pragma in src/ORCommon.h (vendored code only warns). src/Util/ORModern.m bridges the newer
 # iOS on its own terms and opts out. UIKit comes first everywhere because iosMath's UIColor+HexString.m tests
 # TARGET_OS_IPHONE without including anything (the iOS 16.5 SDK treats that as an error) and needs UIColor.
-AIChat_OBJCFLAGS := -fobjc-arc -Wunguarded-availability -include src/Util/ORLegacyCompatibility.h
+AIChat_OBJCFLAGS := -fobjc-arc -Wunguarded-availability -include UIKit/UIKit.h
 
 AIChat_LDFLAGS := -lz
 

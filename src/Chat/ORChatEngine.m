@@ -252,7 +252,7 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
     if ([content isKindOfClass:[NSArray class]]) {
         NSMutableString *s = [NSMutableString string];
         for (id part in content) {
-            if ([part isKindOfClass:[NSDictionary class]] && [part[@"text"] isKindOfClass:[NSString class]]) [s appendString:part[@"text"]];
+            if ([part isKindOfClass:[NSDictionary class]] && [[part objectForKey:@"text"] isKindOfClass:[NSString class]]) [s appendString:[part objectForKey:@"text"]];
         }
         return s;
     }
@@ -265,9 +265,9 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
     for (id item in images) {
         NSString *url = nil;
         if ([item isKindOfClass:[NSDictionary class]]) {
-            id iu = item[@"image_url"];
-            if ([iu isKindOfClass:[NSDictionary class]] && [iu[@"url"] isKindOfClass:[NSString class]]) url = iu[@"url"];
-            else if ([item[@"url"] isKindOfClass:[NSString class]]) url = item[@"url"];
+            id iu = [item objectForKey:@"image_url"];
+            if ([iu isKindOfClass:[NSDictionary class]] && [[iu objectForKey:@"url"] isKindOfClass:[NSString class]]) url = [iu objectForKey:@"url"];
+            else if ([[item objectForKey:@"url"] isKindOfClass:[NSString class]]) url = [item objectForKey:@"url"];
         } else if ([item isKindOfClass:[NSString class]]) {
             url = item;
         }
@@ -403,7 +403,7 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
             }
         }
         if (parts.count == 0) continue;
-        id content = (parts.count == 1 && [parts[0][@"type"] isEqualToString:@"text"]) ? text : parts;
+        id content = (parts.count == 1 && [[[parts objectAtIndex:0] objectForKey:@"type"] isEqualToString:@"text"]) ? text : parts;
         [built addObject:@{ @"role": @"user", @"content": content }];
         [sizes addObject:@(size)];
     }
