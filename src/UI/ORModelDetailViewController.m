@@ -76,7 +76,7 @@
         return MAX(44, s.height + 24);
     }
     if (indexPath.section == 0) {
-        NSString *value = self.rows[indexPath.row][1];
+        NSString *value = [[self.rows objectAtIndex:indexPath.row] objectAtIndex:1];
         CGSize s = [value sizeWithFont:[UIFont systemFontOfSize:14] constrainedToSize:CGSizeMake(width - 90, 400) lineBreakMode:NSLineBreakByWordWrapping];
         return MAX(44, s.height + 22);
     }
