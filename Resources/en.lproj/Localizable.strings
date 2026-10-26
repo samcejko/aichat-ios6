@@ -40,3 +40,8 @@
 "This conversation belongs to a different provider. Switch back to that provider or start a new chat." = "This conversation belongs to a different provider. Switch back to that provider or start a new chat.";
 "PDF parsing is available through OpenRouter. Convert this PDF to text before using another provider." = "PDF parsing is available through OpenRouter. Convert this PDF to text before using another provider.";
 "This option is an OpenRouter feature." = "This option is an OpenRouter feature.";
+
+"Connection status" = "Connection status";
+"Custom / OpenAI-compatible" = "Custom / OpenAI-compatible";
+"Custom / Anthropic-compatible" = "Custom / Anthropic-compatible";
+"Custom / Responses API" = "Custom / Responses API";

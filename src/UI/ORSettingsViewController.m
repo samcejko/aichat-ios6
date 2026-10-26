@@ -285,10 +285,10 @@ typedef NS_ENUM(NSInteger, ORSection) {
         case ORSectionAccount:
             if (row == 0) {
                 cell.textLabel.text = L(@"Provider and API key");
-                cell.detailTextLabel.text = [[ORProvider preset:s.providerID] objectForKey:@"name"];
+                cell.detailTextLabel.text = L([[ORProvider preset:s.providerID] objectForKey:@"name"]);
                 cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
             } else {
-                cell.textLabel.text = L(@"Key status");
+                cell.textLabel.text = [ORProvider isOpenRouter]?L(@"Key status"):L(@"Connection status");
                 cell.detailTextLabel.text = self.keyStatusText;
             }
             break;

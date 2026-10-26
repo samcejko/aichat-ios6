@@ -274,3 +274,8 @@
 "This conversation belongs to a different provider. Switch back to that provider or start a new chat." = "Tato konverzace patří jinému poskytovateli. Přepněte se zpět k původnímu poskytovateli nebo začněte nový chat.";
 "PDF parsing is available through OpenRouter. Convert this PDF to text before using another provider." = "Zpracování PDF je dostupné přes OpenRouter. Pro jiného poskytovatele nejdřív převeďte PDF na text.";
 "This option is an OpenRouter feature." = "Tato volba je funkcí OpenRouteru.";
+
+"Connection status" = "Stav připojení";
+"Custom / OpenAI-compatible" = "Vlastní / kompatibilní s OpenAI";
+"Custom / Anthropic-compatible" = "Vlastní / kompatibilní s Anthropic";
+"Custom / Responses API" = "Vlastní / Responses API";

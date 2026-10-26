@@ -72,7 +72,7 @@ static NSArray *ORPArray(id v){return [v isKindOfClass:[NSArray class]]?v:@[];}
 + (NSDictionary *)adaptEvent:(NSDictionary *)json profile:(NSDictionary *)profile {
     if([profile[@"protocol"] isEqual:@"responses"]){NSString *type=json[@"type"];
         if([type isEqual:@"response.output_text.delta"]||[type isEqual:@"response.refusal.delta"]||[type isEqual:@"response.reasoning_summary_text.delta"])return @{@"choices":@[@{@"delta":@{([type isEqual:@"response.reasoning_summary_text.delta"]?@"reasoning":@"content"):json[@"delta"] ?: @""}}]};
-        if([type isEqual:@"error"]||[type isEqual:@"response.failed"])return @{@"error":[ORPDict(json[@"response"]) objectForKey:@"error"] ?: json[@"error"] ?: @{@"message":json[@"message"] ?: @"Response failed"}};
+        if([type isEqual:@"error"]||[type isEqual:@"response.failed"])return @{@"error":[ORPDict(json[@"response"]) objectForKey:@"error"] ?: json[@"error"] ?: @{@"message":json[@"message"] ?: L(@"Unknown error")}};
         if([type isEqual:@"response.completed"]||[type isEqual:@"response.incomplete"]){NSDictionary *r=[self adaptResponse:ORPDict(json[@"response"]) profile:profile];return @{@"choices":@[@{@"delta":@{},@"finish_reason":[type isEqual:@"response.incomplete"]?@"length":@"stop"}],@"usage":r[@"usage"] ?: @{}};}
         return @{@"choices":@[]};
     }

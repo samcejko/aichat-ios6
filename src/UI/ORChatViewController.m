@@ -699,6 +699,9 @@ static const NSInteger kWebSearchAlertTag = 4201;
 - (void)messageCell:(ORMessageCell *)cell continueMessage:(ORMessage *)message
 {
     if (!self.currentModel) { [self modelTapped]; return; }
+    if(![self.conversation.providerIdentity isEqual:[ORSettings shared].providerIdentity]){[ORUtils alertWithTitle:L(@"AI provider") message:L(@"This conversation belongs to a different provider. Switch back to that provider or start a new chat.")];return;}
+    if(![ORProvider isOpenRouter])for(ORAttachment *a in atts)if(a.kind==ORAttachmentKindPDF){[ORUtils alertWithTitle:L(@"Attachments") message:L(@"PDF parsing is available through OpenRouter. Convert this PDF to text before using another provider.")];return;}
+
     [self.engine continueMessage:message model:self.currentModel];
 }
 
