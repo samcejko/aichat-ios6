@@ -495,7 +495,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         self.reasoningView.frame = layout.reasoningFrame;
         self.reasoningView.backgroundColor = [theme noteBackgroundColor];
         self.reasoningLabel.frame = CGRectInset(self.reasoningView.bounds, 8, 6);
-        self.reasoningLabel.attributedText = layout.reasoningText;
+        ORSetAttributedText(self.reasoningLabel,layout.reasoningText);
         self.reasoningLabel.lineBreakMode = message.reasoningExpanded ? NSLineBreakByWordWrapping : NSLineBreakByTruncatingTail;
         self.reasoningLabel.numberOfLines = message.reasoningExpanded ? 0 : 1;
     } else {
@@ -616,7 +616,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
                 if (natural.width <= 0) {
                     ORCodeBlockView *cv = [[ORCodeBlockView alloc] initWithFrame:f];
                     cv.backgroundColor = [theme codeBackgroundColorInUserBubble:isUser];
-                    cv.label.attributedText = ORCodeAttributed(bf.block.rawText, textColor);
+                    ORSetAttributedText(cv.label,ORCodeAttributed(bf.block.rawText, textColor));
                     v = cv;
                     break;
                 }
@@ -641,7 +641,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
             case ORMDBlockTable: {
                 ORCodeBlockView *cv = [[ORCodeBlockView alloc] initWithFrame:f];
                 cv.backgroundColor = [theme codeBackgroundColorInUserBubble:isUser];
-                cv.label.attributedText = ORCodeAttributed(bf.block.rawText, textColor);
+                ORSetAttributedText(cv.label,ORCodeAttributed(bf.block.rawText, textColor));
                 v = cv;
                 break;
             }
@@ -660,7 +660,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
                 UILabel *l = [[ORAttributedLabel alloc] initWithFrame:wrap.bounds];
                 l.numberOfLines = 0;
                 l.backgroundColor = [UIColor clearColor];
-                l.attributedText = bf.block.text;
+                ORSetAttributedText(l,bf.block.text);
                 [wrap addSubview:l];
                 v = wrap;
                 break;
@@ -669,7 +669,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
                 UILabel *l = [[ORAttributedLabel alloc] initWithFrame:f];
                 l.numberOfLines = 0;
                 l.backgroundColor = [UIColor clearColor];
-                l.attributedText = bf.block.text;
+                ORSetAttributedText(l,bf.block.text);
                 v = l;
                 break;
             }
@@ -707,7 +707,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         self.noteView.frame = layout.noteFrame;
         self.noteView.backgroundColor = [theme noteBackgroundColor];
         self.noteLabel.frame = CGRectInset(self.noteView.bounds, 8, 6);
-        self.noteLabel.attributedText = layout.noteText;
+        ORSetAttributedText(self.noteLabel,layout.noteText);
         self.noteLabel.lineBreakMode = message.visionNoteExpanded ? NSLineBreakByWordWrapping : NSLineBreakByTruncatingTail;
         self.noteLabel.numberOfLines = message.visionNoteExpanded ? 0 : 2;
     } else {

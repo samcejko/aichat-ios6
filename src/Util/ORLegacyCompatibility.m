@@ -35,3 +35,5 @@ CGSize ORMeasureAttributed(NSAttributedString *text,CGFloat width) {
 @end
 
 UIImage *ORStretchImage(UIImage *image,UIEdgeInsets insets){if([image respondsToSelector:@selector(resizableImageWithCapInsets:resizingMode:)])return [image resizableImageWithCapInsets:insets resizingMode:UIImageResizingModeStretch];return [image resizableImageWithCapInsets:insets];}
+
+void ORSetAttributedText(UILabel *label,NSAttributedString *text){if([label respondsToSelector:@selector(setAttributedText:)])[label setAttributedText:text];else label.text=text.string;}

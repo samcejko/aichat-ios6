@@ -12,9 +12,7 @@ CGSize ORMeasureAttributed(NSAttributedString *text,CGFloat width);
 @interface ORAttributedLabel : UILabel
 @property(nonatomic,copy) NSAttributedString *attributedText;
 @end
-@interface UILabel (OREarlierLabelDeclaration)
-@property(nonatomic,copy) NSAttributedString *attributedText;
-@end
+void ORSetAttributedText(UILabel *label,NSAttributedString *text);
 #if __IPHONE_OS_VERSION_MIN_REQUIRED < 60000
 #define NSMutableParagraphStyle ORCompatibleParagraphStyle
 #define NSFontAttributeName ORFontKey()
