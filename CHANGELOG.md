@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.1 (2026-10-26)
+
+- Extend the 32-bit package to iOS 5–10 with Foundation compatibility methods.
+- Core Text attributed-text rendering and measurement on iOS 5.
+- Multi-photo grid without a UICollectionView requirement on older systems.
+- Keep the 26 providers and the modern arm64 build.
+
+
 ## 0.4.0 (2026-10-26)
 
 - #64: 26 provider/local-server presets, editable endpoints and manual model IDs.

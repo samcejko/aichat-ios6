@@ -164,13 +164,14 @@ static const CGFloat kCellSize = 76.0;
 @property(nonatomic,strong) NSMutableArray *assets;
 @property(nonatomic,strong) NSMutableSet *selected;
 @property(nonatomic) NSUInteger maxSelection;
+@property(nonatomic) CGFloat gridWidth;
 @property(nonatomic,copy) void (^completion)(NSArray *images);
 @end
 @implementation ORPhotoGridViewController
 - (instancetype)init {if((self=[super initWithStyle:UITableViewStylePlain])){_selected=[NSMutableSet set];_assets=[NSMutableArray array];}return self;}
 - (void)viewDidLoad {[super viewDidLoad];self.title=[self.group valueForProperty:ALAssetsGroupPropertyName] ?: L(@"Photos");self.tableView.separatorStyle=UITableViewCellSeparatorStyleNone;self.tableView.backgroundColor=[[ORTheme shared] tableBackgroundColor];[self updateDoneButton];[self.group setAssetsFilter:[ALAssetsFilter allPhotos]];NSMutableArray *list=[NSMutableArray array];[self.group enumerateAssetsUsingBlock:^(ALAsset *asset,NSUInteger index,BOOL *stop){if(asset)[list addObject:asset];}];for(NSInteger i=list.count-1;i>=0;i--)[self.assets addObject:[list objectAtIndex:i]];[self.tableView reloadData];}
 - (NSUInteger)columns {return MAX(1,(NSUInteger)(self.tableView.bounds.size.width/(kCellSize+4)));}
-- (void)viewDidLayoutSubviews {[super viewDidLayoutSubviews];[self.tableView reloadData];}
+- (void)viewDidLayoutSubviews {[super viewDidLayoutSubviews];CGFloat width=self.tableView.bounds.size.width;if(fabs(width-self.gridWidth)>0.5){self.gridWidth=width;[self.tableView reloadData];}}
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {return (self.assets.count+[self columns]-1)/[self columns];}
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {return kCellSize+4;}
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {

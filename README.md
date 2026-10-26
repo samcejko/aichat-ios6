@@ -1,6 +1,6 @@
 # AI Chat for iOS 6
 
-Universal (iPhone + iPad) multi-provider AI chat client for **jailbroken iOS 6.x** devices (armv7, e.g. iPad 2),
+Universal (iPhone + iPad) multi-provider AI chat client for **jailbroken iOS 5–10** devices (armv7, e.g. iPad 2),
 with a second build for **64-bit devices with iOS 14–17** (iPhone X and newer: rootless jailbreaks and
 TrollStore) that keeps the glossy iOS 6 look.
 Choose a provider and bring its API key, or connect a local model server. OpenRouter remains the default.
@@ -71,7 +71,7 @@ until you explicitly switch back or start a new chat. HTTP endpoints send data u
 No Mac needed. Every push to a branch and every pull request runs `.github/workflows/build.yml` on
 Ubuntu with Theos and Mbed TLS, twice from the same sources:
 
-- `ios6-armv7`: the iOS 9.3 SDK, deployment target 6.0 → `AIChat-<version>.ipa` and the `iphoneos-arm` `.deb`;
+- `ios6-armv7`: the iOS 9.3 SDK, deployment target 5.0 → `AIChat-<version>.ipa` and the `iphoneos-arm` `.deb`;
 - `ios14-arm64`: `make package THEOS_PACKAGE_SCHEME=rootless`, the iOS 16.5 SDK, deployment target 14.0 →
   `AIChat-<version>-arm64.ipa` (TrollStore) and the `iphoneos-arm64` `.deb` (rootless, `/var/jb`).
 
@@ -118,3 +118,7 @@ under their own licenses, see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 This is an independent hobby project, not affiliated with OpenRouter or Apple.
+
+## iOS 5 compatibility
+
+The 32-bit package targets iOS 5.0–10.x. On iOS 5, attributed replies render through Core Text and the multi-photo picker uses a table-based grid. Missing Foundation collection selectors are backported. iOS 6 and newer retain native attributed labels; modern builds retain their system photo grid. The modern arm64 package remains separate.
