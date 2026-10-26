@@ -700,7 +700,6 @@ static const NSInteger kWebSearchAlertTag = 4201;
 {
     if (!self.currentModel) { [self modelTapped]; return; }
     if(![self.conversation.providerIdentity isEqual:[ORSettings shared].providerIdentity]){[ORUtils alertWithTitle:L(@"AI provider") message:L(@"This conversation belongs to a different provider. Switch back to that provider or start a new chat.")];return;}
-    if(![ORProvider isOpenRouter])for(ORAttachment *a in atts)if(a.kind==ORAttachmentKindPDF){[ORUtils alertWithTitle:L(@"Attachments") message:L(@"PDF parsing is available through OpenRouter. Convert this PDF to text before using another provider.")];return;}
 
     [self.engine continueMessage:message model:self.currentModel];
 }
@@ -758,6 +757,8 @@ static const NSInteger kWebSearchAlertTag = 4201;
     if (![ORSettings shared].hasAPIKey) { [self presentKeyEntryOnboarding:NO]; return; }
     if (!self.currentModel) { [self modelTapped]; return; }
     if (self.engine.isBusy) return;
+    if(![self.conversation.providerIdentity isEqual:[ORSettings shared].providerIdentity]){[ORUtils alertWithTitle:L(@"AI provider") message:L(@"This conversation belongs to a different provider. Switch back to that provider or start a new chat.")];return;}
+    if(![ORProvider isOpenRouter])for(ORAttachment *a in atts)if(a.kind==ORAttachmentKindPDF){[ORUtils alertWithTitle:L(@"Attachments") message:L(@"PDF parsing is available through OpenRouter. Convert this PDF to text before using another provider.")];return;}
     [bar clearText];
     [self.pendingAttachments removeAllObjects];
     bar.attachments = @[];

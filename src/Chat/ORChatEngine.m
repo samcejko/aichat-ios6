@@ -423,6 +423,7 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
     for (NSUInteger i = dropFrom; i < built.count; i++) [messages addObject:built[i]];
 
     NSMutableDictionary *body = [NSMutableDictionary dictionary];
+    if(self.continuing && ![ORProvider isOpenRouter])[messages addObject:@{@"role":@"user",@"content":@"Continue the previous answer from where it stopped. Do not repeat the text already written."}];
     body[@"model"] = model.modelId;
     body[@"messages"] = messages;
     if (settings.temperature >= 0 && [model supportsParameter:@"temperature"]) body[@"temperature"] = @(settings.temperature);
