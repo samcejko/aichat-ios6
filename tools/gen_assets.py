@@ -98,6 +98,16 @@ def make_icon(size):
     return base_icon().resize((size, size), LANCZOS)
 
 
+def make_home_icon(size):
+    """Explicit legacy mask for the iOS 6 system-app installation used by Cydia."""
+    icon = make_icon(size).convert("RGBA")
+    big = size * 4
+    mask = Image.new("L", (big, big), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, big - 1, big - 1), radius=int(big * 0.1757), fill=255)
+    icon.putalpha(mask.resize((size, size), LANCZOS))
+    return icon
+
+
 def make_launch(w, h):
     img = vertical_gradient((w, h), (236, 238, 243), (214, 217, 226))
     d = ImageDraw.Draw(img)
@@ -157,7 +167,7 @@ LAUNCH = {
 }
 
 for name, size in ICONS.items():
-    make_icon(size).save(os.path.join(OUT, name), "PNG")
+    make_home_icon(size).save(os.path.join(OUT, name), "PNG")
     print("icon", name)
 
 for name, (w, h) in LAUNCH.items():

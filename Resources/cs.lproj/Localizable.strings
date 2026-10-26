@@ -192,7 +192,6 @@
 "Edit" = "Upravit";
 "Save Image" = "Uložit obrázek";
 "Model info" = "Informace o modelu";
-"Name" = "Název";
 "Max output" = "Max výstup";
 "Image input" = "Vstup obrázků";
 "Input" = "Vstup";
@@ -251,3 +250,27 @@
 
 /* 0.2.5 */
 "Author" = "Autor";
+
+/* Multiple AI providers (#64). */
+"AI provider" = "Poskytovatel AI";
+"Provider" = "Poskytovatel";
+"API base URL" = "Základní adresa API";
+"API format" = "Formát API";
+"Provider and API key" = "Poskytovatel a API klíč";
+"API key (optional for local servers)" = "API klíč (u lokálních serverů nepovinný)";
+"Model ID" = "ID modelu";
+"Model ID (or load the list after saving)" = "ID modelu (nebo po uložení načtěte seznam)";
+"Selected model accepts images" = "Vybraný model přijímá obrázky";
+"Test connection and save" = "Otestovat připojení a uložit";
+"Save without testing" = "Uložit bez testování";
+"Choose a provider or enter your own API address. Keys stay separate for each provider and address. For local models, use your computer's LAN address instead of 127.0.0.1." = "Vyberte poskytovatele nebo zadejte vlastní adresu API. Klíče se ukládají zvlášť pro každého poskytovatele a adresu. U lokálních modelů místo 127.0.0.1 zadejte adresu počítače v místní síti.";
+"OpenRouter extras (web search, PDF parsing and compression) only work with OpenRouter. Other services use their own billing and model features." = "Rozšíření OpenRouteru (hledání na webu, zpracování PDF a komprese) fungují jen s OpenRouterem. Ostatní služby mají vlastní účtování a funkce modelů.";
+"Enter an HTTP or HTTPS API base URL without a query, password or fragment." = "Zadejte základní HTTP nebo HTTPS adresu API bez parametrů, hesla a fragmentu.";
+"The API key cannot contain spaces or line breaks." = "API klíč nesmí obsahovat mezery ani konce řádků.";
+"Connection test failed: %@. You can still save a service that does not list models." = "Test připojení selhal: %@. Službu, která neposkytuje seznam modelů, můžete přesto uložit.";
+"Provider connected" = "Poskytovatel je připojený";
+"Not enough credits on this provider account." = "Na účtu u tohoto poskytovatele není dostatek kreditu.";
+"Rate limited. Wait and check your provider quota." = "Dosažen limit požadavků. Vyčkejte a zkontrolujte limit u poskytovatele.";
+"This conversation belongs to a different provider. Switch back to that provider or start a new chat." = "Tato konverzace patří jinému poskytovateli. Přepněte se zpět k původnímu poskytovateli nebo začněte nový chat.";
+"PDF parsing is available through OpenRouter. Convert this PDF to text before using another provider." = "Zpracování PDF je dostupné přes OpenRouter. Pro jiného poskytovatele nejdřív převeďte PDF na text.";
+"This option is an OpenRouter feature." = "Tato volba je funkcí OpenRouteru.";

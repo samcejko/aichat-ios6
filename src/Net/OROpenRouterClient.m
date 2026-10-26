@@ -1,6 +1,7 @@
 #import "OROpenRouterClient.h"
 #import "ORSSEParser.h"
 #import "ORSettings.h"
+#import "ORProvider.h"
 #import "ORUtils.h"
 #import "ORCommon.h"
 
@@ -32,12 +33,12 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
 {
     switch (status) {
         case 401: return L(@"The API key was rejected. Check it in Settings.");
-        case 402: return L(@"Not enough credits on your OpenRouter account.");
+        case 402: return L(@"Not enough credits on this provider account.");
         case 403: return L(@"The request was blocked by moderation or permissions.");
         case 404: return L(@"Model not found. Refresh the model list.");
         case 408: return L(@"The request timed out. Try again.");
         case 413: return L(@"The request is too large. Use a smaller image or file.");
-        case 429: return L(@"Rate limited. Free models allow 20 requests per minute and a daily quota.");
+        case 429: return L(@"Rate limited. Wait and check your provider quota.");
         case 502: return L(@"The model is down or returned an invalid response. Try another model.");
         case 503: return L(@"No provider is available for this model right now.");
         default: return nil;
@@ -77,8 +78,7 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
 
 - (ORHTTPRequest *)fetchModels:(void (^)(NSArray *, NSError *))completion
 {
-    ORHTTPRequest *req = [ORHTTPRequest requestWithMethod:@"GET" host:kHost path:@"/api/v1/models"];
-    req.headers = [self headersWithKey:[ORSettings shared].apiKey accept:@"application/json"];
+    ORHTTPRequest *req = [ORProvider request:@"GET" suffix:@"/models" profile:[ORProvider current] key:[ORSettings shared].apiKey];
     req.readTimeout = 60;
     req.onComplete = ^(NSInteger status, NSData *body, NSError *error) {
         if (error) { completion(nil, error); return; }
@@ -99,13 +99,14 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
 
 - (ORHTTPRequest *)fetchKeyInfoWithKey:(NSString *)apiKey completion:(ORJSONCompletion)completion
 {
-    ORHTTPRequest *req = [ORHTTPRequest requestWithMethod:@"GET" host:kHost path:@"/api/v1/key"];
-    req.headers = [self headersWithKey:apiKey accept:@"application/json"];
+    BOOL router=[ORProvider isOpenRouter];
+    ORHTTPRequest *req=[ORProvider request:@"GET" suffix:router?@"/key":@"/models" profile:[ORProvider current] key:apiKey];
     req.readTimeout = 30;
     req.onComplete = ^(NSInteger status, NSData *body, NSError *error) {
         if (error) { completion(nil, error); return; }
         id json = [ORUtils JSONObjectFromData:body];
         if (status != 200) { completion(nil, [OROpenRouterClient errorFromResponseJSON:json status:status]); return; }
+        if(!router){completion(@{@"label":L(@"Provider connected")},nil);return;}
         NSDictionary *data = [json isKindOfClass:[NSDictionary class]] ? json[@"data"] : nil;
         if (![data isKindOfClass:[NSDictionary class]]) {
             completion(nil, ORMakeError(ORErrorBadResponse, L(@"Unexpected response format.")));
@@ -125,11 +126,13 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
                                completion:(void (^)(NSDictionary *, NSError *))completion
 {
     NSString *key = [ORSettings shared].apiKey;
-    if (!key.length) {
+    if (![ORSettings shared].hasAPIKey) {
         completion(nil, ORMakeError(ORErrorNoAPIKey, L(@"No API key set.")));
         return nil;
     }
-    NSMutableDictionary *payload = [body mutableCopy];
+    NSDictionary *profile=[ORProvider current];
+    NSError *baseError=nil;if(![ORProvider normalizeBaseURL:profile[@"baseURL"] error:&baseError]){completion(nil,baseError);return nil;}
+    NSMutableDictionary *payload = [[ORProvider adaptBody:body profile:profile] mutableCopy];
     payload[@"stream"] = @(stream);
     NSData *json = [ORUtils JSONDataFromObject:payload];
     if (!json) {
@@ -137,8 +140,8 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
         return nil;
     }
 
-    ORHTTPRequest *req = [ORHTTPRequest requestWithMethod:@"POST" host:kHost path:@"/api/v1/chat/completions"];
-    req.headers = [self headersWithKey:key accept:stream ? @"text/event-stream" : @"application/json"];
+    ORHTTPRequest *req = [ORProvider request:@"POST" suffix:[profile[@"protocol"] isEqual:@"anthropic"]?@"/messages":@"/chat/completions" profile:profile key:key];
+    NSMutableDictionary *headers=[req.headers mutableCopy];headers[@"Accept"]=stream?@"text/event-stream":@"application/json";req.headers=headers;
     req.body = json;
     req.readTimeout = 180;
     req.streamBody = stream;
@@ -151,7 +154,7 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
                 completion(nil, [OROpenRouterClient errorFromResponseJSON:resp status:status]);
                 return;
             }
-            completion(resp, nil);
+            completion([ORProvider adaptResponse:resp profile:profile], nil);
         };
         [req start];
         return req;
@@ -163,6 +166,8 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
     __block NSDictionary *lastChunkWithUsage = nil;
     __block NSError *streamError = nil;
     __block BOOL done = NO;
+    __block BOOL jsonResponse=NO;
+    NSMutableDictionary *combinedUsage=[NSMutableDictionary dictionary];
 
     sse.onEvent = ^(NSString *data) {
         if (done) return;
@@ -170,20 +175,21 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
         if ([trimmed isEqualToString:@"[DONE]"]) { done = YES; return; }
         id chunk = [ORUtils JSONObjectFromData:[trimmed dataUsingEncoding:NSUTF8StringEncoding]];
         if (![chunk isKindOfClass:[NSDictionary class]]) return;
+        chunk=[ORProvider adaptEvent:chunk profile:profile];
         if (chunk[@"error"]) {
             streamError = [OROpenRouterClient errorFromResponseJSON:chunk status:200];
             done = YES;
             return;
         }
-        if ([chunk[@"usage"] isKindOfClass:[NSDictionary class]]) lastChunkWithUsage = chunk;
+        if ([chunk[@"usage"] isKindOfClass:[NSDictionary class]]) { [combinedUsage addEntriesFromDictionary:chunk[@"usage"]];lastChunkWithUsage=@{@"usage":[combinedUsage copy]}; }
         if (onDelta) onDelta(chunk);
     };
     req.onHeaders = ^(NSInteger status, NSDictionary *headers) {
-        httpStatus = status;
+        httpStatus = status;for(NSString *k in headers)if([[k lowercaseString] isEqual:@"content-type"])jsonResponse=[[headers[k] lowercaseString] rangeOfString:@"application/json"].location!=NSNotFound;
     };
     req.onData = ^(NSData *chunk) {
-        if (httpStatus == 200) [sse feedData:chunk];
-        else [errorBody appendData:chunk];
+        if (httpStatus == 200 && !jsonResponse) [sse feedData:chunk];
+        else if(errorBody.length+chunk.length<=8*1024*1024)[errorBody appendData:chunk];
     };
     req.onComplete = ^(NSInteger status, NSData *unused, NSError *error) {
         if (error && !streamError) { completion(nil, error); return; }
@@ -192,6 +198,7 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
             completion(nil, [OROpenRouterClient errorFromResponseJSON:resp status:status]);
             return;
         }
+        if(jsonResponse){id resp=[ORUtils JSONObjectFromData:errorBody];if(![resp isKindOfClass:[NSDictionary class]]||resp[@"error"]){completion(nil,[OROpenRouterClient errorFromResponseJSON:resp status:status]);return;}NSDictionary *normalized=[ORProvider adaptResponse:resp profile:profile];NSArray *choices=normalized[@"choices"];if(![choices isKindOfClass:[NSArray class]]||!choices.count){completion(nil,ORMakeError(ORErrorBadResponse,L(@"Unexpected response format.")));return;}NSDictionary *choice=choices[0];if(onDelta)onDelta(@{@"choices":@[@{@"delta":choice[@"message"] ?: @{},@"finish_reason":choice[@"finish_reason"] ?: @"stop"}]});completion(normalized,nil);return;}
         [sse finish];
         if (streamError) { completion(nil, streamError); return; }
         completion(lastChunkWithUsage, nil);

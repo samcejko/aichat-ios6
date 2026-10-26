@@ -1,0 +1,67 @@
+#import "ORProvider.h"
+#import "ORSettings.h"
+#import "ORHTTPRequest.h"
+#import "ORUtils.h"
+#import "ORCommon.h"
+#import <CommonCrypto/CommonDigest.h>
+NSString * const ORProviderDidChangeNotification = @"ORProviderDidChangeNotification";
+@implementation ORProvider
++ (NSArray *)presets { static NSArray *rows;static dispatch_once_t once;dispatch_once(&once,^{id value=[ORUtils JSONObjectFromData:[NSData dataWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"Providers" ofType:@"json"]]];rows=[value isKindOfClass:[NSArray class]]?value:@[];});return rows; }
++ (NSDictionary *)preset:(NSString *)identifier {for(NSDictionary *p in [self presets])if([p[@"id"] isEqual:identifier])return p;return [self presets].count?[self presets][0]:@{};}
++ (NSString *)normalizeBaseURL:(NSString *)value error:(NSError **)error {
+    NSString *s=[value stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSURL *u=[NSURL URLWithString:s];NSString *scheme=[u.scheme lowercaseString];
+    BOOL valid=([scheme isEqual:@"https"]||[scheme isEqual:@"http"])&&u.host.length&&!u.user.length&&!u.password.length&&!u.query.length&&!u.fragment.length&&[s rangeOfCharacterFromSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].location==NSNotFound;
+    if(!valid){if(error)*error=ORMakeError(ORErrorBadResponse,L(@"Enter an HTTP or HTTPS API base URL without a query, password or fragment."));return nil;}
+    while([s hasSuffix:@"/"])s=[s substringToIndex:s.length-1];
+    for(NSString *ending in @[@"/chat/completions",@"/messages",@"/models"])if([s hasSuffix:ending]){s=[s substringToIndex:s.length-ending.length];break;}
+    // Canonicalize the authority so harmless case changes do not select another credential slot.
+    NSURL *canonical=[NSURL URLWithString:s];NSString *host=[canonical.host lowercaseString];if([host rangeOfString:@":"].location!=NSNotFound)host=[NSString stringWithFormat:@"[%@]",host];
+    NSInteger port=canonical.port.integerValue;NSString *authority=port&&port!=([scheme isEqual:@"https"]?443:80)?[NSString stringWithFormat:@"%@:%ld",host,(long)port]:host;
+    NSString *path=[canonical path] ?: @"";while([path hasSuffix:@"/"])path=[path substringToIndex:path.length-1];
+    return [NSString stringWithFormat:@"%@://%@%@",scheme,authority,path];
+}
++ (NSString *)identityForID:(NSString *)identifier baseURL:(NSString *)base protocol:(NSString *)protocol {
+    NSData *d=[[NSString stringWithFormat:@"%@|%@|%@",identifier ?: @"openrouter",protocol ?: @"openai",base ?: @""] dataUsingEncoding:NSUTF8StringEncoding];unsigned char hash[CC_SHA256_DIGEST_LENGTH];CC_SHA256(d.bytes,(CC_LONG)d.length,hash);NSMutableString *s=[NSMutableString string];for(int i=0;i<CC_SHA256_DIGEST_LENGTH;i++)[s appendFormat:@"%02x",hash[i]];return s;
+}
++ (NSDictionary *)current {ORSettings *s=[ORSettings shared];return @{@"id":s.providerID,@"baseURL":s.apiBaseURL,@"protocol":s.apiProtocol};}
++ (BOOL)isOpenRouter {ORSettings *s=[ORSettings shared];return [s.providerID isEqual:@"openrouter"]&&[s.apiBaseURL isEqual:@"https://openrouter.ai/api/v1"]&&[s.apiProtocol isEqual:@"openai"];}
++ (ORHTTPRequest *)request:(NSString *)method suffix:(NSString *)suffix profile:(NSDictionary *)profile key:(NSString *)key {
+    NSURL *u=[NSURL URLWithString:[profile[@"baseURL"] stringByAppendingString:suffix]];ORHTTPRequest *r=[ORHTTPRequest requestWithMethod:method host:u.host path:u.path.length?u.path:@"/"];r.secure=[[u.scheme lowercaseString] isEqual:@"https"];r.port=u.port?u.port.integerValue:(r.secure?443:80);
+    NSMutableDictionary *h=[NSMutableDictionary dictionaryWithObject:@"application/json" forKey:@"Accept"];
+    NSString *protocol=profile[@"protocol"];
+    if([protocol isEqual:@"anthropic"]){h[@"anthropic-version"]=@"2023-06-01";if(key.length)h[@"x-api-key"]=key;}
+    else if(key.length)h[[protocol isEqual:@"azure"]?@"api-key":@"Authorization"]=[protocol isEqual:@"azure"]?key:[@"Bearer " stringByAppendingString:key];
+    if([profile[@"id"] isEqual:@"openrouter"]&&[profile[@"baseURL"] isEqual:@"https://openrouter.ai/api/v1"]){h[@"HTTP-Referer"]=@"https://github.com/samcejko/aichat-ios6";h[@"X-Title"]=@"AI Chat";}
+    r.headers=h;return r;
+}
++ (NSDictionary *)adaptBody:(NSDictionary *)body profile:(NSDictionary *)profile {
+    NSMutableDictionary *b=[body mutableCopy];BOOL router=[profile[@"id"] isEqual:@"openrouter"]&&[profile[@"baseURL"] isEqual:@"https://openrouter.ai/api/v1"];
+    if(router)return b;
+    [b removeObjectForKey:@"plugins"];[b removeObjectForKey:@"transforms"];[b removeObjectForKey:@"route"];[b removeObjectForKey:@"provider"];[b removeObjectForKey:@"reasoning"];[b removeObjectForKey:@"modalities"];
+    if([profile[@"protocol"] isEqual:@"anthropic"]){
+        NSMutableArray *messages=[NSMutableArray array],*systems=[NSMutableArray array];
+        for(NSDictionary *m in body[@"messages"]){id content=m[@"content"];if([m[@"role"] isEqual:@"system"]){if([content isKindOfClass:[NSString class]])[systems addObject:content];continue;}
+            NSMutableArray *parts=[NSMutableArray array];if([content isKindOfClass:[NSString class]]){if([content length])[parts addObject:@{@"type":@"text",@"text":content}];}
+            else for(NSDictionary *part in content){NSString *type=part[@"type"];if([type isEqual:@"text"])[parts addObject:part];else if([type isEqual:@"image_url"]){NSString *url=[part[@"image_url"] objectForKey:@"url"];if([url hasPrefix:@"data:"]){NSRange comma=[url rangeOfString:@","];NSRange semi=[url rangeOfString:@";"];if(comma.location!=NSNotFound&&semi.location!=NSNotFound&&semi.location<comma.location)[parts addObject:@{@"type":@"image",@"source":@{@"type":@"base64",@"media_type":[url substringWithRange:NSMakeRange(5,semi.location-5)],@"data":[url substringFromIndex:comma.location+1]}}];}else if(url.length)[parts addObject:@{@"type":@"image",@"source":@{@"type":@"url",@"url":url}}];}}
+            if(parts.count)[messages addObject:@{@"role":[m[@"role"] isEqual:@"assistant"]?@"assistant":@"user",@"content":parts}];
+        }
+        NSMutableDictionary *a=[NSMutableDictionary dictionaryWithDictionary:@{@"model":body[@"model"] ?: @"",@"messages":messages,@"max_tokens":body[@"max_tokens"] ?: @4096}];if(systems.count)a[@"system"]=[systems componentsJoinedByString:@"\n\n"];if(body[@"temperature"])a[@"temperature"]=body[@"temperature"];return a;
+    }
+    if([profile[@"id"] isEqual:@"openai"]||[profile[@"protocol"] isEqual:@"azure"]){if(b[@"max_tokens"]){b[@"max_completion_tokens"]=b[@"max_tokens"];[b removeObjectForKey:@"max_tokens"];}NSString *model=b[@"model"];if([model hasPrefix:@"o1"]||[model hasPrefix:@"o3"]||[model hasPrefix:@"o4"]||[model hasPrefix:@"gpt-5"]||[model hasPrefix:@"gpt-6"])[b removeObjectForKey:@"temperature"];}
+    return b;
+}
++ (NSDictionary *)adaptResponse:(NSDictionary *)json profile:(NSDictionary *)profile {
+    if(![profile[@"protocol"] isEqual:@"anthropic"])return json;NSMutableString *text=[NSMutableString string],*thinking=[NSMutableString string];for(NSDictionary *p in json[@"content"]){if([p[@"type"] isEqual:@"text"])[text appendString:p[@"text"] ?: @""];if([p[@"type"] isEqual:@"thinking"])[thinking appendString:p[@"thinking"] ?: @""];}
+    NSDictionary *usage=json[@"usage"];return @{@"choices":@[@{@"message":@{@"content":text,@"reasoning":thinking},@"finish_reason":[json[@"stop_reason"] isEqual:@"max_tokens"]?@"length":@"stop"}],@"usage":@{@"prompt_tokens":usage[@"input_tokens"] ?: @0,@"completion_tokens":usage[@"output_tokens"] ?: @0}};
+}
++ (NSDictionary *)adaptEvent:(NSDictionary *)json profile:(NSDictionary *)profile {
+    if(![profile[@"protocol"] isEqual:@"anthropic"])return json;
+    NSString *type=json[@"type"];NSDictionary *d=json[@"delta"];
+    if([type isEqual:@"error"])return @{@"error":json[@"error"] ?: @{}};
+    if([type isEqual:@"content_block_delta"])return @{@"choices":@[@{@"delta":@{@"content":[d[@"type"] isEqual:@"text_delta"]?(d[@"text"] ?: @""):@"",@"reasoning":[d[@"type"] isEqual:@"thinking_delta"]?(d[@"thinking"] ?: @""):@""}}]};
+    if([type isEqual:@"message_delta"])return @{@"choices":@[@{@"delta":@{},@"finish_reason":[d[@"stop_reason"] isEqual:@"max_tokens"]?@"length":@"stop"}],@"usage":@{@"completion_tokens":[json[@"usage"] objectForKey:@"output_tokens"] ?: @0}};
+    if([type isEqual:@"message_start"])return @{@"choices":@[],@"usage":@{@"prompt_tokens":[[json[@"message"] objectForKey:@"usage"] objectForKey:@"input_tokens"] ?: @0}};
+    return @{@"choices":@[]};
+}
+@end

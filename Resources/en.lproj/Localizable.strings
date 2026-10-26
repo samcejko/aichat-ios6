@@ -16,3 +16,27 @@
 "History" = "History";
 "Delete" = "Delete";
 "Regenerate" = "Regenerate";
+
+/* Multiple AI providers (#64). */
+"AI provider" = "AI provider";
+"Provider" = "Provider";
+"API base URL" = "API base URL";
+"API format" = "API format";
+"Provider and API key" = "Provider and API key";
+"API key (optional for local servers)" = "API key (optional for local servers)";
+"Model ID" = "Model ID";
+"Model ID (or load the list after saving)" = "Model ID (or load the list after saving)";
+"Selected model accepts images" = "Selected model accepts images";
+"Test connection and save" = "Test connection and save";
+"Save without testing" = "Save without testing";
+"Choose a provider or enter your own API address. Keys stay separate for each provider and address. For local models, use your computer's LAN address instead of 127.0.0.1." = "Choose a provider or enter your own API address. Keys stay separate for each provider and address. For local models, use your computer's LAN address instead of 127.0.0.1.";
+"OpenRouter extras (web search, PDF parsing and compression) only work with OpenRouter. Other services use their own billing and model features." = "OpenRouter extras (web search, PDF parsing and compression) only work with OpenRouter. Other services use their own billing and model features.";
+"Enter an HTTP or HTTPS API base URL without a query, password or fragment." = "Enter an HTTP or HTTPS API base URL without a query, password or fragment.";
+"The API key cannot contain spaces or line breaks." = "The API key cannot contain spaces or line breaks.";
+"Connection test failed: %@. You can still save a service that does not list models." = "Connection test failed: %@. You can still save a service that does not list models.";
+"Provider connected" = "Provider connected";
+"Not enough credits on this provider account." = "Not enough credits on this provider account.";
+"Rate limited. Wait and check your provider quota." = "Rate limited. Wait and check your provider quota.";
+"This conversation belongs to a different provider. Switch back to that provider or start a new chat." = "This conversation belongs to a different provider. Switch back to that provider or start a new chat.";
+"PDF parsing is available through OpenRouter. Convert this PDF to text before using another provider." = "PDF parsing is available through OpenRouter. Convert this PDF to text before using another provider.";
+"This option is an OpenRouter feature." = "This option is an OpenRouter feature.";

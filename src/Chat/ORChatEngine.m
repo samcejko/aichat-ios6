@@ -2,6 +2,7 @@
 #import "OROpenRouterClient.h"
 #import "ORModelCatalog.h"
 #import "ORSettings.h"
+#import "ORProvider.h"
 #import "ORStore.h"
 #import "ORUtils.h"
 #import "ORCommon.h"
@@ -22,6 +23,13 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
 @end
 
 @implementation ORChatEngine
+- (instancetype)init {if((self=[super init]))[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(providerChanged) name:ORProviderDidChangeNotification object:nil];return self;}
+- (void)dealloc {[[NSNotificationCenter defaultCenter] removeObserver:self];[self.activeRequest cancel];}
+- (void)providerChanged {[self cancel];}
+- (BOOL)providerMatches {
+ if(![self.conversation.providerIdentity isEqual:[ORSettings shared].providerIdentity]){[self appendError:L(@"This conversation belongs to a different provider. Switch back to that provider or start a new chat.")];return NO;}return YES;
+}
+
 
 - (void)setBusy:(BOOL)busy
 {
@@ -37,7 +45,8 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
 
 - (void)sendText:(NSString *)text attachments:(NSArray *)attachments model:(ORModelInfo *)model
 {
-    if (self.isBusy || !self.conversation) return;
+    if (self.isBusy || !self.conversation || ![self providerMatches]) return;
+    if(![ORProvider isOpenRouter])for(ORAttachment *a in attachments)if(a.kind==ORAttachmentKindPDF){[self appendError:L(@"PDF parsing is available through OpenRouter. Convert this PDF to text before using another provider.")];return;}
     ORMessage *user = [ORMessage messageWithRole:ORMessageRoleUser text:text ?: @""];
     user.attachments = attachments ?: @[];
     [self.conversation.messages addObject:user];
@@ -50,7 +59,7 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
 
 - (void)regenerateWithModel:(ORModelInfo *)model
 {
-    if (self.isBusy || !self.conversation) return;
+    if (self.isBusy || !self.conversation || ![self providerMatches]) return;
     // Drop everything after the last user message.
     NSInteger lastUser = -1;
     for (NSInteger i = (NSInteger)self.conversation.messages.count - 1; i >= 0; i--) {
@@ -67,7 +76,7 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
 
 - (void)continueMessage:(ORMessage *)message model:(ORModelInfo *)model
 {
-    if (self.isBusy || !self.conversation || !model) return;
+    if (self.isBusy || !self.conversation || !model || ![self providerMatches]) return;
     if (!message || message.role != ORMessageRoleAssistant || message != self.conversation.messages.lastObject) return;
     self.cancelled = NO;
     [self setBusy:YES];
@@ -134,7 +143,7 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
     assistant.modelId = model.modelId;
     assistant.isStreaming = YES;
     assistant.statusText = L(@"Thinking…");
-    assistant.usedWebSearch = [ORSettings shared].webSearch;
+    assistant.usedWebSearch = [ORProvider isOpenRouter] && [ORSettings shared].webSearch;
     self.pendingAssistant = assistant;
     [self.conversation.messages addObject:assistant];
     [self.delegate chatEngine:self didAddMessage:assistant];
@@ -430,9 +439,9 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
     if ([model supportsImageOutput]) body[@"modalities"] = @[ @"image", @"text" ];
 
     NSMutableArray *plugins = [NSMutableArray array];
-    if (settings.webSearch) [plugins addObject:@{ @"id": @"web", @"max_results": @5 }];
-    if (anyPDF) [plugins addObject:@{ @"id": @"file-parser", @"pdf": @{ @"engine": settings.pdfEngine ?: @"cloudflare-ai" } }];
-    if (settings.middleOut) [plugins addObject:@{ @"id": @"context-compression", @"engine": @"middle-out" }];
+    if ([ORProvider isOpenRouter] && settings.webSearch) [plugins addObject:@{ @"id": @"web", @"max_results": @5 }];
+    if ([ORProvider isOpenRouter] && anyPDF) [plugins addObject:@{ @"id": @"file-parser", @"pdf": @{ @"engine": settings.pdfEngine ?: @"cloudflare-ai" } }];
+    if ([ORProvider isOpenRouter] && settings.middleOut) [plugins addObject:@{ @"id": @"context-compression", @"engine": @"middle-out" }];
     if (plugins.count) body[@"plugins"] = plugins;
     return body;
 }
@@ -454,6 +463,7 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
 
 - (void)sendMainRequestWithModel:(ORModelInfo *)model
 {
+    if(self.cancelled||![self.conversation.providerIdentity isEqual:[ORSettings shared].providerIdentity]){[self finishCancelled];return;}
     ORMessage *assistant = self.pendingAssistant;
     NSDictionary *body = [self buildBodyWithModel:model];
     BOOL stream = [ORSettings shared].streaming;
@@ -466,7 +476,7 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
         NSDictionary *delta = first[@"delta"];
         if (![delta isKindOfClass:[NSDictionary class]]) return;
         id content = delta[@"content"];
-        id reasoning = delta[@"reasoning"];
+        id reasoning = delta[@"reasoning"] ?: delta[@"reasoning_content"];
         BOOL changed = NO;
         if ([content isKindOfClass:[NSString class]] && [content length]) {
             assistant.text = [assistant.text stringByAppendingString:content];
@@ -494,7 +504,7 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
             if ([fr isKindOfClass:[NSString class]]) assistant.finishReason = fr;
             NSDictionary *msg = first[@"message"];
             if ([msg isKindOfClass:[NSDictionary class]]) {
-                id r = msg[@"reasoning"];
+                id r = msg[@"reasoning"] ?: msg[@"reasoning_content"];
                 if ([r isKindOfClass:[NSString class]] && [r length]) assistant.reasoning = r;
                 if (msg[@"images"]) [self collectImagesFrom:msg[@"images"]];
             }

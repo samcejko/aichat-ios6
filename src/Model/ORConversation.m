@@ -1,6 +1,8 @@
 #import "ORConversation.h"
 #import "ORUtils.h"
 #import "ORCommon.h"
+#import "ORSettings.h"
+#import "ORProvider.h"
 
 @implementation ORConversation
 
@@ -11,6 +13,7 @@
     c.createdAt = [NSDate date];
     c.updatedAt = c.createdAt;
     c.messages = [NSMutableArray array];
+    c.providerIdentity=[ORSettings shared].providerIdentity;
     return c;
 }
 
@@ -20,6 +23,7 @@
     ORConversation *c = [[ORConversation alloc] init];
     c.conversationId = json[@"id"];
     if (!c.conversationId) return nil;
+    c.providerIdentity=[json[@"providerIdentity"] isKindOfClass:[NSString class]]?json[@"providerIdentity"]:[ORProvider identityForID:@"openrouter" baseURL:@"https://openrouter.ai/api/v1" protocol:@"openai"];
     c.title = [json[@"title"] isKindOfClass:[NSString class]] ? json[@"title"] : nil;
     c.modelId = [json[@"model"] isKindOfClass:[NSString class]] ? json[@"model"] : nil;
     c.createdAt = [NSDate dateWithTimeIntervalSince1970:[json[@"created"] doubleValue]];
@@ -49,6 +53,7 @@
     d[@"created"] = @([self.createdAt timeIntervalSince1970]);
     d[@"updated"] = @([self.updatedAt timeIntervalSince1970]);
     d[@"messages"] = msgs;
+    d[@"providerIdentity"]=self.providerIdentity ?: @"";
     return d;
 }
 

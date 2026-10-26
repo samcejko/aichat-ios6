@@ -1,230 +1,53 @@
 #import "ORAPIKeyViewController.h"
-#import "ORExternalOpen.h"
-#import "OROpenRouterClient.h"
+#import "ORChoiceViewController.h"
+#import "ORProvider.h"
 #import "ORSettings.h"
+#import "OROpenRouterClient.h"
+#import "ORModelCatalog.h"
 #import "ORTheme.h"
 #import "ORUtils.h"
-#import "ORModern.h"
 #import "ORCommon.h"
-
 @interface ORAPIKeyViewController () <UITextFieldDelegate>
-@property (nonatomic, strong) UIScrollView *scroll;
-@property (nonatomic, strong) UILabel *intro;
-@property (nonatomic, strong) UITextField *field;
-@property (nonatomic, strong) UIButton *pasteButton;
-@property (nonatomic, strong) UIButton *verifyButton;
-@property (nonatomic, strong) UIButton *saveButton;
-@property (nonatomic, strong) UIButton *linkButton;
-@property (nonatomic, strong) UILabel *status;
-@property (nonatomic, strong) UIActivityIndicatorView *spinner;
-@property (nonatomic, strong) ORHTTPRequest *request;
+@property(nonatomic,strong) UIScrollView *scroll;
+@property(nonatomic,strong) UIButton *providerButton,*protocolButton,*saveButton,*testButton;
+@property(nonatomic,strong) UITextField *baseField,*keyField,*modelField;
+@property(nonatomic,strong) UISwitch *images;
+@property(nonatomic,strong) UILabel *intro,*status,*imageLabel;
+@property(nonatomic,strong) NSArray *labels;
+@property(nonatomic,copy) NSString *draftID,*draftProtocol;
+@property(nonatomic,strong) ORHTTPRequest *request;
 @end
-
 @implementation ORAPIKeyViewController
-
-- (void)viewDidLoad
-{
-    [super viewDidLoad];
-    self.title = L(@"API Key");
-    self.contentSizeForViewInPopover = CGSizeMake(420, 420);
-
-    self.scroll = [[UIScrollView alloc] initWithFrame:self.view.bounds];
-    self.scroll.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    self.scroll.alwaysBounceVertical = YES;
-    [self.view addSubview:self.scroll];
-
-    self.intro = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.intro.numberOfLines = 0;
-    self.intro.font = [UIFont systemFontOfSize:15];
-    self.intro.backgroundColor = [UIColor clearColor];
-    self.intro.text = L(@"Paste your OpenRouter API key. It is stored only on this device and sent directly to openrouter.ai.");
-    [self.scroll addSubview:self.intro];
-
-    self.field = [[UITextField alloc] initWithFrame:CGRectZero];
-    self.field.borderStyle = UITextBorderStyleRoundedRect;
-    self.field.placeholder = @"sk-or-v1-…";
-    self.field.font = [UIFont fontWithName:@"Courier" size:14] ?: [UIFont systemFontOfSize:14];
-    self.field.autocapitalizationType = UITextAutocapitalizationTypeNone;
-    self.field.autocorrectionType = UITextAutocorrectionTypeNo;
-    self.field.clearButtonMode = UITextFieldViewModeWhileEditing;
-    self.field.returnKeyType = UIReturnKeyDone;
-    self.field.delegate = self;
-    self.field.text = [ORSettings shared].apiKey ?: @"";
-    [self.scroll addSubview:self.field];
-
-    self.pasteButton = [UIButton buttonWithType:UIButtonTypeRoundedRect];
-    [self.pasteButton setTitle:L(@"Paste from clipboard") forState:UIControlStateNormal];
-    [self.pasteButton addTarget:self action:@selector(pasteTapped) forControlEvents:UIControlEventTouchUpInside];
-    [self.scroll addSubview:self.pasteButton];
-
-    self.verifyButton = [UIButton buttonWithType:UIButtonTypeRoundedRect];
-    [self.verifyButton setTitle:L(@"Verify and save") forState:UIControlStateNormal];
-    self.verifyButton.titleLabel.font = [UIFont boldSystemFontOfSize:17];
-    [self.verifyButton addTarget:self action:@selector(verifyTapped) forControlEvents:UIControlEventTouchUpInside];
-    [self.scroll addSubview:self.verifyButton];
-
-    self.saveButton = [UIButton buttonWithType:UIButtonTypeRoundedRect];
-    [self.saveButton setTitle:L(@"Save without verifying") forState:UIControlStateNormal];
-    [self.saveButton addTarget:self action:@selector(saveTapped) forControlEvents:UIControlEventTouchUpInside];
-    [self.scroll addSubview:self.saveButton];
-
-    self.linkButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    [self.linkButton setTitle:L(@"Get a key at openrouter.ai/keys") forState:UIControlStateNormal];
-    self.linkButton.titleLabel.font = [UIFont systemFontOfSize:14];
-    [self.linkButton addTarget:self action:@selector(linkTapped) forControlEvents:UIControlEventTouchUpInside];
-    [self.scroll addSubview:self.linkButton];
-
-    self.status = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.status.numberOfLines = 0;
-    self.status.font = [UIFont systemFontOfSize:14];
-    self.status.backgroundColor = [UIColor clearColor];
-    [self.scroll addSubview:self.status];
-
-    self.spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
-    self.spinner.hidesWhenStopped = YES;
-    [self.scroll addSubview:self.spinner];
-
-    if (!self.onboarding) {
-        self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(cancelTapped)];
-    }
-    [self applyTheme];
+- (UITextField *)field:(NSString *)placeholder secure:(BOOL)secure {
+ UITextField *f=[[UITextField alloc] initWithFrame:CGRectZero];f.borderStyle=UITextBorderStyleRoundedRect;f.font=[UIFont systemFontOfSize:15];f.placeholder=placeholder;f.secureTextEntry=secure;f.autocorrectionType=UITextAutocorrectionTypeNo;f.autocapitalizationType=UITextAutocapitalizationTypeNone;f.delegate=self;f.returnKeyType=UIReturnKeyDone;[self.scroll addSubview:f];return f;
 }
-
-- (void)viewWillAppear:(BOOL)animated
-{
-    [super viewWillAppear:animated];
-    [self applyTheme];
+- (UIButton *)button:(NSString *)title action:(SEL)action {UIButton *b=[UIButton buttonWithType:UIButtonTypeRoundedRect];[b setTitle:title forState:UIControlStateNormal];b.titleLabel.font=[UIFont boldSystemFontOfSize:16];[b addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];[self.scroll addSubview:b];return b;}
+- (UILabel *)label:(NSString *)text {UILabel *l=[[UILabel alloc] initWithFrame:CGRectZero];l.text=text;l.font=[UIFont systemFontOfSize:14];l.backgroundColor=[UIColor clearColor];[self.scroll addSubview:l];return l;}
+- (void)viewDidLoad {
+ [super viewDidLoad];self.title=L(@"AI provider");self.contentSizeForViewInPopover=CGSizeMake(480,660);self.scroll=[[UIScrollView alloc] initWithFrame:self.view.bounds];self.scroll.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;self.scroll.alwaysBounceVertical=YES;[self.view addSubview:self.scroll];
+ self.intro=[self label:L(@"Choose a provider or enter your own API address. Keys stay separate for each provider and address. For local models, use your computer's LAN address instead of 127.0.0.1.")];self.intro.numberOfLines=0;
+ self.providerButton=[self button:@"" action:@selector(chooseProvider)];self.protocolButton=[self button:@"" action:@selector(chooseProtocol)];
+ self.baseField=[self field:@"https://example.com/v1" secure:NO];self.baseField.keyboardType=UIKeyboardTypeURL;[self.baseField addTarget:self action:@selector(baseChanged) forControlEvents:UIControlEventEditingChanged];
+ self.keyField=[self field:L(@"API key (optional for local servers)") secure:YES];self.keyField.accessibilityIdentifier=@"provider.key";
+ self.modelField=[self field:L(@"Model ID (or load the list after saving)") secure:NO];
+ self.baseField.accessibilityIdentifier=@"provider.base";self.modelField.accessibilityIdentifier=@"provider.model";
+ self.labels=@[[self label:L(@"Provider")],[self label:L(@"API base URL")],[self label:L(@"API format")],[self label:L(@"API key")],[self label:L(@"Model ID")]];
+ self.images=[[UISwitch alloc] initWithFrame:CGRectZero];[self.scroll addSubview:self.images];self.imageLabel=[self label:L(@"Selected model accepts images")];self.imageLabel.numberOfLines=2;
+ self.testButton=[self button:L(@"Test connection and save") action:@selector(testTapped)];self.saveButton=[self button:L(@"Save without testing") action:@selector(saveTapped)];self.status=[self label:L(@"OpenRouter extras (web search, PDF parsing and compression) only work with OpenRouter. Other services use their own billing and model features.")];self.status.numberOfLines=0;
+ self.draftID=[ORSettings shared].providerID;[self loadDraft];
+ if(!self.onboarding)self.navigationItem.leftBarButtonItem=[[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(cancelTapped)];
+ ORTheme *theme=[ORTheme shared];self.view.backgroundColor=[theme chatBackgroundColor];[theme applyToNavigationBar:self.navigationController.navigationBar];
 }
-
-- (void)viewDidAppear:(BOOL)animated
-{
-    [super viewDidAppear:animated];
-    if (!self.field.text.length) [self.field becomeFirstResponder];
-}
-
-- (void)applyTheme
-{
-    ORTheme *t = [ORTheme shared];
-    self.view.backgroundColor = [t tableBackgroundColor];
-    self.intro.textColor = [t primaryTextColor];
-    self.status.textColor = [t secondaryTextColor];
-    [self.linkButton setTitleColor:[t accentColor] forState:UIControlStateNormal];
-    self.spinner.activityIndicatorViewStyle = t.isDark ? UIActivityIndicatorViewStyleWhite : UIActivityIndicatorViewStyleGray;
-    [t applyToNavigationBar:self.navigationController.navigationBar];
-}
-
-- (void)viewWillLayoutSubviews
-{
-    [super viewWillLayoutSubviews];
-    CGFloat w = self.view.bounds.size.width;
-    UIEdgeInsets safe = ORSafeAreaInsets(self.view);   // the notch in landscape (iOS 11+)
-    CGFloat margin = (ORIsPad() ? 40 : 16) + MAX(safe.left, safe.right);
-    CGFloat cw = w - 2 * margin;
-    CGFloat y = 20;
-    CGSize introSize = [self.intro.text sizeWithFont:self.intro.font constrainedToSize:CGSizeMake(cw, 400) lineBreakMode:NSLineBreakByWordWrapping];
-    self.intro.frame = CGRectMake(margin, y, cw, introSize.height);
-    y += introSize.height + 16;
-    self.field.frame = CGRectMake(margin, y, cw, 36);
-    y += 46;
-    self.pasteButton.frame = CGRectMake(margin, y, cw, 40);
-    y += 50;
-    self.verifyButton.frame = CGRectMake(margin, y, cw, 44);
-    y += 54;
-    self.saveButton.frame = CGRectMake(margin, y, cw, 40);
-    y += 50;
-    self.spinner.frame = CGRectMake(margin, y + 2, 20, 20);
-    self.status.frame = CGRectMake(margin + 28, y, cw - 28, 80);
-    y += 90;
-    self.linkButton.frame = CGRectMake(margin, y, cw, 30);
-    y += 40;
-    self.scroll.contentSize = CGSizeMake(w, y + 20);
-}
-
-#pragma mark - Actions
-
-- (void)pasteTapped
-{
-    NSString *s = [UIPasteboard generalPasteboard].string;
-    if (s.length) {
-        self.field.text = [s stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-        [self verifyTapped];
-    } else {
-        self.status.text = L(@"The clipboard is empty.");
-    }
-}
-
-- (NSString *)enteredKey
-{
-    return [self.field.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-}
-
-- (void)finishSaved
-{
-    if (self.completion) self.completion(YES);
-}
-
-- (void)verifyTapped
-{
-    NSString *key = [self enteredKey];
-    if (!key.length) {
-        self.status.text = L(@"Enter a key first.");
-        return;
-    }
-    [self.field resignFirstResponder];
-    [self.spinner startAnimating];
-    self.status.text = L(@"Verifying…");
-    self.verifyButton.enabled = NO;
-    self.request = [[OROpenRouterClient shared] fetchKeyInfoWithKey:key completion:^(NSDictionary *info, NSError *error) {
-        [self.spinner stopAnimating];
-        self.verifyButton.enabled = YES;
-        self.request = nil;
-        if (error) {
-            self.status.text = [NSString stringWithFormat:L(@"Verification failed: %@"), error.localizedDescription];
-            return;
-        }
-        [ORSettings shared].apiKey = key;
-        NSString *label = [info[@"label"] isKindOfClass:[NSString class]] ? info[@"label"] : @"";
-        [ORSettings shared].apiKeyLabel = label;
-        [[ORSettings shared] save];
-        NSMutableString *msg = [NSMutableString stringWithString:L(@"Key verified.")];
-        if ([info[@"is_free_tier"] boolValue]) [msg appendFormat:@" %@", L(@"Free tier account.")];
-        NSDictionary *daily = info[@"free_model_daily_requests"];
-        if ([daily isKindOfClass:[NSDictionary class]]) {
-            [msg appendFormat:@" %@", [NSString stringWithFormat:L(@"Free requests today: %@ of %@."), daily[@"used"] ?: @"?", daily[@"limit"] ?: @"?"]];
-        }
-        self.status.text = msg;
-        [self performSelector:@selector(finishSaved) withObject:nil afterDelay:0.6];
-    }];
-}
-
-- (void)saveTapped
-{
-    NSString *key = [self enteredKey];
-    if (!key.length) {
-        self.status.text = L(@"Enter a key first.");
-        return;
-    }
-    [ORSettings shared].apiKey = key;
-    [[ORSettings shared] save];
-    [self finishSaved];
-}
-
-- (void)linkTapped
-{
-    [ORExternalOpen presentOpenInForURL:[NSURL URLWithString:@"https://openrouter.ai/keys"] from:self anchor:self.linkButton];
-}
-
-- (void)cancelTapped
-{
-    [self.request cancel];
-    if (self.completion) self.completion(NO);
-}
-
-- (BOOL)textFieldShouldReturn:(UITextField *)textField
-{
-    [textField resignFirstResponder];
-    [self verifyTapped];
-    return YES;
-}
-
+- (void)viewDidLayoutSubviews {[super viewDidLayoutSubviews];CGFloat w=self.scroll.bounds.size.width,m=18,c=w-2*m,y=12;self.intro.frame=CGRectMake(m,y,c,88);y+=96;NSArray *fields=@[self.providerButton,self.baseField,self.protocolButton,self.keyField,self.modelField];for(NSUInteger i=0;i<fields.count;i++){((UILabel *)self.labels[i]).frame=CGRectMake(m,y,c,20);y+=23;((UIView *)fields[i]).frame=CGRectMake(m,y,c,40);y+=48;}self.images.frame=CGRectMake(m,y,79,31);self.imageLabel.frame=CGRectMake(m+90,y,c-90,35);y+=45;self.testButton.frame=CGRectMake(m,y,c,44);y+=52;self.saveButton.frame=CGRectMake(m,y,c,40);y+=48;self.status.frame=CGRectMake(m,y,c,125);self.scroll.contentSize=CGSizeMake(w,y+145);}
+- (void)loadDraft {ORSettings *s=[ORSettings shared];NSDictionary *profile=[s profileForProvider:self.draftID];self.baseField.text=profile[@"baseURL"] ?: @"";self.draftProtocol=profile[@"protocol"] ?: @"openai";self.keyField.text=[s keyForProvider:self.draftID baseURL:self.baseField.text protocol:self.draftProtocol];self.modelField.text=profile[@"model"] ?: @"";self.images.on=[profile[@"images"] boolValue];[self updateTitles];}
+- (void)updateTitles {[self.providerButton setTitle:[[ORProvider preset:self.draftID] objectForKey:@"name"] forState:UIControlStateNormal];[self.protocolButton setTitle:[self.draftProtocol isEqual:@"anthropic"]?@"Anthropic Messages":[self.draftProtocol isEqual:@"azure"]?@"Azure OpenAI v1":@"OpenAI Chat Completions" forState:UIControlStateNormal];}
+- (void)chooseProvider {if(self.request)return;[self.view endEditing:YES];NSArray *presets=[ORProvider presets];NSMutableArray *titles=[NSMutableArray array];NSInteger selected=0;for(NSDictionary *p in presets){if([p[@"id"] isEqual:self.draftID])selected=titles.count;[titles addObject:p[@"name"]];}ORChoiceViewController *vc=[ORChoiceViewController new];vc.title=L(@"Provider");vc.titles=titles;vc.selectedIndex=selected;vc.completion=^(NSInteger index){self.draftID=[presets[index] objectForKey:@"id"];[self loadDraft];};[self.navigationController pushViewController:vc animated:YES];}
+- (void)chooseProtocol {if(self.request)return;ORChoiceViewController *vc=[ORChoiceViewController new];NSArray *values=@[@"openai",@"anthropic",@"azure"];vc.title=L(@"API format");vc.titles=@[@"OpenAI Chat Completions",@"Anthropic Messages",@"Azure OpenAI v1"];vc.selectedIndex=[values indexOfObject:self.draftProtocol];vc.completion=^(NSInteger index){self.draftProtocol=values[index];self.keyField.text=@"";[self updateTitles];};[self.navigationController pushViewController:vc animated:YES];}
+- (void)baseChanged {self.keyField.text=@"";}
+- (NSDictionary *)validatedDraft {NSError *error=nil;NSString *base=[ORProvider normalizeBaseURL:self.baseField.text error:&error];if(!base){self.status.text=error.localizedDescription;return nil;}NSString *key=[self.keyField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];if([key rangeOfCharacterFromSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].location!=NSNotFound){self.status.text=L(@"The API key cannot contain spaces or line breaks.");return nil;}if([[[ORProvider preset:self.draftID] objectForKey:@"keyRequired"] boolValue]&&!key.length){self.status.text=L(@"Enter a key first.");return nil;}return @{@"id":self.draftID,@"baseURL":base,@"protocol":self.draftProtocol,@"key":key ?: @""};}
+- (void)commit:(NSDictionary *)draft {NSString *model=[self.modelField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];[[ORSettings shared] configureProvider:self.draftID baseURL:draft[@"baseURL"] protocol:self.draftProtocol model:model key:draft[@"key"] images:self.images.on];[[ORModelCatalog shared] refreshWithCompletion:nil];if(self.completion)self.completion(YES);}
+- (void)saveTapped {if(self.request)return;NSDictionary *draft=[self validatedDraft];if(draft){[self.view endEditing:YES];[self commit:draft];}}
+- (void)testTapped {if(self.request)return;NSDictionary *draft=[self validatedDraft];if(!draft)return;[self.view endEditing:YES];BOOL router=[draft[@"id"] isEqual:@"openrouter"]&&[draft[@"baseURL"] isEqual:@"https://openrouter.ai/api/v1"];self.status.text=L(@"Testing…");self.saveButton.enabled=NO;self.testButton.enabled=NO;ORHTTPRequest *r=[ORProvider request:@"GET" suffix:router?@"/key":@"/models" profile:draft key:draft[@"key"]];r.readTimeout=30;r.onComplete=^(NSInteger status,NSData *data,NSError *error){self.request=nil;self.saveButton.enabled=YES;self.testButton.enabled=YES;id json=[ORUtils JSONObjectFromData:data];if(error||status!=200||![json isKindOfClass:[NSDictionary class]]||json[@"error"]){self.status.text=[NSString stringWithFormat:L(@"Connection test failed: %@. You can still save a service that does not list models."),(error ?: [OROpenRouterClient errorFromResponseJSON:json status:status]).localizedDescription];return;}[self commit:draft];};self.request=r;[r start];}
+- (void)cancelTapped {[self.request cancel];if(self.completion)self.completion(NO);}
+- (BOOL)textFieldShouldReturn:(UITextField *)f {[f resignFirstResponder];return YES;}
 @end

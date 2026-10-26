@@ -1,4 +1,5 @@
 #import "ORModelCatalog.h"
+#import "ORProvider.h"
 #import "ORUtils.h"
 #import "ORCommon.h"
 #import "OROpenRouterClient.h"
@@ -6,6 +7,8 @@
 static const NSTimeInterval kStaleInterval = 12 * 60 * 60;
 
 @interface ORModelCatalog ()
+@property (nonatomic) NSUInteger refreshGeneration;
+@property(nonatomic,strong) ORHTTPRequest *request;
 @property (nonatomic, strong) NSArray *models;
 @property (nonatomic, strong) NSDate *lastUpdated;
 @property (nonatomic) BOOL isRefreshing;
@@ -30,13 +33,17 @@ static const NSTimeInterval kStaleInterval = 12 * 60 * 60;
         _models = @[];
         _byId = @{};
         _pendingCompletions = [NSMutableArray array];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(providerChanged) name:ORProviderDidChangeNotification object:nil];
     }
     return self;
 }
 
+- (void)providerChanged {
+ self.refreshGeneration++;[self.request cancel];self.request=nil;self.isRefreshing=NO;NSArray *pending=[self.pendingCompletions copy];[self.pendingCompletions removeAllObjects];self.models=@[];self.byId=@{};self.lastUpdated=nil;[self loadCache];for(void (^cb)(NSError *) in pending)cb(ORMakeError(ORErrorCancelled,L(@"Cancelled")));[[NSNotificationCenter defaultCenter] postNotificationName:ORModelsDidUpdateNotification object:self];
+}
 - (NSString *)cacheFile
 {
-    return [[ORUtils cachesPath] stringByAppendingPathComponent:@"models.json"];
+    return [[ORUtils cachesPath] stringByAppendingPathComponent:[ORProvider isOpenRouter]?@"models.json":[NSString stringWithFormat:@"models-%@.json",[ORSettings shared].providerIdentity]];
 }
 
 - (BOOL)hasModels
@@ -107,8 +114,10 @@ static const NSTimeInterval kStaleInterval = 12 * 60 * 60;
     if (completion) [self.pendingCompletions addObject:[completion copy]];
     if (self.isRefreshing) return;
     self.isRefreshing = YES;
-    [[OROpenRouterClient shared] fetchModels:^(NSArray *modelsJSON, NSError *error) {
-        self.isRefreshing = NO;
+    NSUInteger generation=++self.refreshGeneration;
+    self.request=[[OROpenRouterClient shared] fetchModels:^(NSArray *modelsJSON, NSError *error) {
+        if(generation!=self.refreshGeneration)return;
+        self.request=nil;self.isRefreshing = NO;
         if (!error && modelsJSON.count > 0) {
             [self setModelsFromJSONArray:modelsJSON];
             self.lastUpdated = [NSDate date];
@@ -127,7 +136,8 @@ static const NSTimeInterval kStaleInterval = 12 * 60 * 60;
 - (ORModelInfo *)modelWithId:(NSString *)modelId
 {
     if (!modelId) return nil;
-    return self.byId[modelId];
+    ORModelInfo *m=self.byId[modelId];if(m)return m;
+    if([modelId isEqual:[ORSettings shared].lastModelId])return [ORModelInfo modelWithJSON:@{@"id":modelId,@"architecture":@{@"input_modalities":[ORSettings shared].modelAcceptsImages?@[@"text",@"image"]:@[@"text"],@"output_modalities":@[@"text"]}}];return nil;
 }
 
 - (NSArray *)filteredModelsFreeOnly:(BOOL)freeOnly imagesOnly:(BOOL)imagesOnly query:(NSString *)query sort:(ORModelSort)sort
@@ -136,7 +146,7 @@ static const NSTimeInterval kStaleInterval = 12 * 60 * 60;
     NSMutableArray *out = [NSMutableArray array];
     for (ORModelInfo *m in self.models) {
         if (![m supportsTextOutput]) continue;
-        if (freeOnly && ![m isFree]) continue;
+        if (freeOnly && [ORProvider isOpenRouter] && ![m isFree]) continue;
         if (imagesOnly && ![m supportsImages]) continue;
         if (q.length) {
             BOOL hit = [[m.modelId lowercaseString] rangeOfString:q].location != NSNotFound ||

@@ -13,6 +13,7 @@
 #import "ORImageLoader.h"
 #import "ORModelCatalog.h"
 #import "ORSettings.h"
+#import "ORProvider.h"
 #import "ORStore.h"
 #import "ORTheme.h"
 #import "ORUtils.h"
@@ -98,7 +99,7 @@ static const NSInteger kWebSearchAlertTag = 4201;
 
     self.inputBar = [[ORInputBar alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 44)];
     self.inputBar.delegate = self;
-    self.inputBar.webSearchOn = [ORSettings shared].webSearch;
+    self.inputBar.webSearchOn = [ORProvider isOpenRouter] && [ORSettings shared].webSearch;
     self.inputBar.attachments = [self.pendingAttachments copy];
     [self.view addSubview:self.inputBar];
 
@@ -223,7 +224,7 @@ static const NSInteger kWebSearchAlertTag = 4201;
     [ORMessageCell invalidateLayoutCache];
     [self.tableView reloadData];
     [self updateModelFromSettings];
-    self.inputBar.webSearchOn = [ORSettings shared].webSearch;
+    self.inputBar.webSearchOn = [ORProvider isOpenRouter] && [ORSettings shared].webSearch;
 }
 
 - (void)cancelActiveRequest
@@ -316,7 +317,7 @@ static const NSInteger kWebSearchAlertTag = 4201;
 {
     NSString *mid = [ORSettings shared].lastModelId;
     ORModelInfo *m = [[ORModelCatalog shared] modelWithId:mid];
-    if (m) self.currentModel = m;
+    self.currentModel = m;
     [self updateModelButton];
 }
 
@@ -769,6 +770,7 @@ static const NSInteger kWebSearchAlertTag = 4201;
 - (void)inputBarDidToggleWebSearch:(ORInputBar *)bar
 {
     ORSettings *s = [ORSettings shared];
+    if(![ORProvider isOpenRouter]){[ORUtils alertWithTitle:L(@"Web search") message:L(@"This option is an OpenRouter feature.")];return;}
     if (!s.webSearch && !s.webSearchWarningHidden) {
         // Web search is billed by OpenRouter even with free models, so ask before turning it on.
         UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Web search is paid")

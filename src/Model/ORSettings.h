@@ -18,6 +18,16 @@ typedef NS_ENUM(NSInteger, ORModelSort) {
 @interface ORSettings : NSObject
 
 + (instancetype)shared;
+@property (nonatomic, readonly) NSString *providerID;
+@property (nonatomic, readonly) NSString *apiBaseURL;
+@property (nonatomic, readonly) NSString *apiProtocol;
+@property (nonatomic, readonly) NSString *providerIdentity;
+@property (nonatomic, readonly) BOOL requiresAPIKey;
+@property (nonatomic) BOOL modelAcceptsImages;
+- (NSDictionary *)profileForProvider:(NSString *)identifier;
+- (NSString *)keyForProvider:(NSString *)identifier baseURL:(NSString *)base protocol:(NSString *)protocol;
+- (void)configureProvider:(NSString *)identifier baseURL:(NSString *)base protocol:(NSString *)protocol model:(NSString *)model key:(NSString *)key images:(BOOL)images;
+
 
 @property (nonatomic, copy) NSString *apiKey;
 @property (nonatomic, copy) NSString *apiKeyLabel;

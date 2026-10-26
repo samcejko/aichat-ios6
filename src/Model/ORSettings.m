@@ -1,4 +1,5 @@
 #import "ORSettings.h"
+#import "ORProvider.h"
 #import "ORCommon.h"
 #import <Security/Security.h>
 
@@ -71,7 +72,7 @@ static NSString * const kFallbackKey     = @"apiKey.fallback";
     return @{
         (__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
         (__bridge id)kSecAttrService: kKeychainService,
-        (__bridge id)kSecAttrAccount: kKeychainAccount,
+        (__bridge id)kSecAttrAccount: [self credentialAccount],
     };
 }
 
@@ -108,7 +109,7 @@ static NSString * const kFallbackKey     = @"apiKey.fallback";
     if (!self.keyLoaded) {
         self.keyLoaded = YES;
         NSString *k = [self loadKeyFromKeychain];
-        if (k.length == 0) k = [DEF stringForKey:kFallbackKey];
+        if (k.length == 0) k = [DEF stringForKey:[self fallbackKey]];
         self.cachedKey = k;
     }
     return self.cachedKey;
@@ -120,10 +121,10 @@ static NSString * const kFallbackKey     = @"apiKey.fallback";
     self.cachedKey = trimmed;
     self.keyLoaded = YES;
     if ([self saveKeyToKeychain:trimmed]) {
-        [DEF removeObjectForKey:kFallbackKey];
+        [DEF removeObjectForKey:[self fallbackKey]];
     } else {
-        if (trimmed.length) [DEF setObject:trimmed forKey:kFallbackKey];
-        else [DEF removeObjectForKey:kFallbackKey];
+        if (trimmed.length) [DEF setObject:trimmed forKey:[self fallbackKey]];
+        else [DEF removeObjectForKey:[self fallbackKey]];
     }
     [DEF synchronize];
     [[NSNotificationCenter defaultCenter] postNotificationName:ORAPIKeyDidChangeNotification object:self];
@@ -131,19 +132,40 @@ static NSString * const kFallbackKey     = @"apiKey.fallback";
 
 - (BOOL)hasAPIKey
 {
-    return self.apiKey.length > 0;
+    return !self.requiresAPIKey || self.apiKey.length > 0;
 }
 
 #pragma mark - Simple properties
 
-- (NSString *)apiKeyLabel { return [DEF stringForKey:@"apiKeyLabel"]; }
-- (void)setApiKeyLabel:(NSString *)v { [DEF setObject:v forKey:@"apiKeyLabel"]; }
-
-- (NSString *)lastModelId { return [DEF stringForKey:@"lastModelId"]; }
-- (void)setLastModelId:(NSString *)v { [DEF setObject:v forKey:@"lastModelId"]; [self notify]; }
-
-- (NSString *)visionModelId { return [DEF stringForKey:@"visionModelId"]; }
-- (void)setVisionModelId:(NSString *)v { [DEF setObject:v forKey:@"visionModelId"]; [self notify]; }
+- (NSString *)providerID {return [DEF stringForKey:@"providerID"] ?: @"openrouter";}
+- (NSDictionary *)profileForProvider:(NSString *)identifier {NSDictionary *profiles=[DEF dictionaryForKey:@"providerProfiles"];NSDictionary *p=profiles[identifier];if(![p isKindOfClass:[NSDictionary class]])p=[ORProvider preset:identifier];NSMutableDictionary *result=[p mutableCopy];NSString *base=p[@"baseURL"] ?: @"",*protocol=p[@"protocol"] ?: @"openai";BOOL legacy=[identifier isEqual:@"openrouter"]&&[base isEqual:@"https://openrouter.ai/api/v1"]&&[protocol isEqual:@"openai"];NSString *identity=[ORProvider identityForID:identifier baseURL:base protocol:protocol];result[@"model"]=[DEF stringForKey:legacy?@"lastModelId":[@"lastModelId." stringByAppendingString:identity]] ?: @"";result[@"images"]=@([DEF boolForKey:legacy?@"modelAcceptsImages":[@"modelAcceptsImages." stringByAppendingString:identity]]);return result;}
+- (NSString *)apiBaseURL {return [[self profileForProvider:self.providerID] objectForKey:@"baseURL"] ?: @"";}
+- (NSString *)apiProtocol {return [[self profileForProvider:self.providerID] objectForKey:@"protocol"] ?: @"openai";}
+- (NSString *)providerIdentity {return [ORProvider identityForID:self.providerID baseURL:self.apiBaseURL protocol:self.apiProtocol];}
+- (BOOL)requiresAPIKey {return [[[ORProvider preset:self.providerID] objectForKey:@"keyRequired"] boolValue];}
+- (BOOL)legacyCredential {return [self.providerID isEqual:@"openrouter"]&&[self.apiBaseURL isEqual:@"https://openrouter.ai/api/v1"]&&[self.apiProtocol isEqual:@"openai"];}
+- (NSString *)credentialAccount {return [self legacyCredential]?kKeychainAccount:[@"provider-" stringByAppendingString:self.providerIdentity];}
+- (NSString *)fallbackKey {return [self legacyCredential]?kFallbackKey:[@"apiKey.fallback." stringByAppendingString:self.providerIdentity];}
+- (NSString *)scopedName:(NSString *)name {return [self legacyCredential]?name:[NSString stringWithFormat:@"%@.%@",name,self.providerIdentity];}
+- (NSString *)keyForProvider:(NSString *)identifier baseURL:(NSString *)base protocol:(NSString *)protocol {
+    NSString *identity=[ORProvider identityForID:identifier baseURL:base protocol:protocol];BOOL legacy=[identifier isEqual:@"openrouter"]&&[base isEqual:@"https://openrouter.ai/api/v1"]&&[protocol isEqual:@"openai"];
+    NSDictionary *q=@{(__bridge id)kSecClass:(__bridge id)kSecClassGenericPassword,(__bridge id)kSecAttrService:kKeychainService,(__bridge id)kSecAttrAccount:legacy?kKeychainAccount:[@"provider-" stringByAppendingString:identity],(__bridge id)kSecReturnData:@YES};CFTypeRef value=NULL;OSStatus st=SecItemCopyMatching((__bridge CFDictionaryRef)q,&value);if(st==errSecSuccess&&value)return [[NSString alloc] initWithData:(__bridge_transfer NSData *)value encoding:NSUTF8StringEncoding];return [DEF stringForKey:legacy?kFallbackKey:[@"apiKey.fallback." stringByAppendingString:identity]] ?: @"";
+}
+- (void)configureProvider:(NSString *)identifier baseURL:(NSString *)base protocol:(NSString *)protocol model:(NSString *)model key:(NSString *)key images:(BOOL)images {
+    NSString *old=self.providerIdentity;NSMutableDictionary *profiles=[[DEF dictionaryForKey:@"providerProfiles"] mutableCopy] ?: [NSMutableDictionary dictionary];profiles[identifier]=@{@"baseURL":base,@"protocol":protocol};[DEF setObject:profiles forKey:@"providerProfiles"];[DEF setObject:identifier forKey:@"providerID"];self.keyLoaded=NO;self.cachedKey=nil;
+    self.cachedKey=key ?: @"";self.keyLoaded=YES;if([self saveKeyToKeychain:self.cachedKey])[DEF removeObjectForKey:[self fallbackKey]];else if(key.length)[DEF setObject:key forKey:[self fallbackKey]];else [DEF removeObjectForKey:[self fallbackKey]];
+    if(model.length)[DEF setObject:model forKey:[self scopedName:@"lastModelId"]];else [DEF removeObjectForKey:[self scopedName:@"lastModelId"]];self.modelAcceptsImages=images;
+    if(![old isEqual:self.providerIdentity])[[NSNotificationCenter defaultCenter] postNotificationName:ORProviderDidChangeNotification object:self];
+    [[NSNotificationCenter defaultCenter] postNotificationName:ORAPIKeyDidChangeNotification object:self];[self save];[self notify];
+}
+- (BOOL)modelAcceptsImages {return [DEF boolForKey:[self scopedName:@"modelAcceptsImages"]];}
+- (void)setModelAcceptsImages:(BOOL)v {[DEF setBool:v forKey:[self scopedName:@"modelAcceptsImages"]];}
+- (NSString *)apiKeyLabel { return [DEF stringForKey:[self scopedName:@"apiKeyLabel"]]; }
+- (void)setApiKeyLabel:(NSString *)v { if(v)[DEF setObject:v forKey:[self scopedName:@"apiKeyLabel"]]; }
+- (NSString *)lastModelId { return [DEF stringForKey:[self scopedName:@"lastModelId"]]; }
+- (void)setLastModelId:(NSString *)v {if(v)[DEF setObject:v forKey:[self scopedName:@"lastModelId"]];else [DEF removeObjectForKey:[self scopedName:@"lastModelId"]];[self notify];}
+- (NSString *)visionModelId { return [DEF stringForKey:[self scopedName:@"visionModelId"]]; }
+- (void)setVisionModelId:(NSString *)v {if(v)[DEF setObject:v forKey:[self scopedName:@"visionModelId"]];else [DEF removeObjectForKey:[self scopedName:@"visionModelId"]];[self notify];}
 
 - (NSString *)systemPrompt { return [DEF stringForKey:@"systemPrompt"]; }
 - (void)setSystemPrompt:(NSString *)v { [DEF setObject:v forKey:@"systemPrompt"]; }

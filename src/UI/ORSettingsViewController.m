@@ -1,6 +1,7 @@
 #import "ORSettingsViewController.h"
 #import "ORExternalOpen.h"
 #import "ORSettings.h"
+#import "ORProvider.h"
 #import "ORTheme.h"
 #import "ORModelCatalog.h"
 #import "ORModelPickerViewController.h"
@@ -197,8 +198,7 @@ typedef NS_ENUM(NSInteger, ORSection) {
     self.connectionTestText = L(@"Testing…");
     [self.tableView reloadData];
     NSDate *start = [NSDate date];
-    ORHTTPRequest *req = [ORHTTPRequest requestWithMethod:@"GET" host:@"openrouter.ai" path:@"/api/v1/models?limit=1"];
-    req.headers = @{ @"Accept": @"application/json" };
+    ORHTTPRequest *req = [ORProvider request:@"GET" suffix:@"/models" profile:[ORProvider current] key:[ORSettings shared].apiKey];
     req.readTimeout = 30;
     req.onComplete = ^(NSInteger status, NSData *body, NSError *error) {
         NSTimeInterval dt = -[start timeIntervalSinceNow];
@@ -238,7 +238,7 @@ typedef NS_ENUM(NSInteger, ORSection) {
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
 {
     switch ((ORSection)section) {
-        case ORSectionAccount: return L(@"OpenRouter account");
+        case ORSectionAccount: return L(@"AI provider");
         case ORSectionModels: return L(@"Models");
         case ORSectionChat: return L(@"Chat");
         case ORSectionAppearance: return L(@"Appearance");
@@ -284,8 +284,8 @@ typedef NS_ENUM(NSInteger, ORSection) {
     switch ((ORSection)sec) {
         case ORSectionAccount:
             if (row == 0) {
-                cell.textLabel.text = L(@"API key");
-                cell.detailTextLabel.text = [self maskedKey];
+                cell.textLabel.text = L(@"Provider and API key");
+                cell.detailTextLabel.text = [[ORProvider preset:s.providerID] objectForKey:@"name"];
                 cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
             } else {
                 cell.textLabel.text = L(@"Key status");

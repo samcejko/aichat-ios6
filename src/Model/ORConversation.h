@@ -6,6 +6,7 @@
 @property (nonatomic, copy) NSString *conversationId;
 @property (nonatomic, copy) NSString *title;
 @property (nonatomic, copy) NSString *modelId;
+@property (nonatomic, copy) NSString *providerIdentity;
 @property (nonatomic, strong) NSDate *createdAt;
 @property (nonatomic, strong) NSDate *updatedAt;
 @property (nonatomic, strong) NSMutableArray *messages;   // ORMessage

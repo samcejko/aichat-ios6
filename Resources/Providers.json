@@ -1,0 +1,156 @@
+[
+  {
+    "id": "openrouter",
+    "name": "OpenRouter",
+    "baseURL": "https://openrouter.ai/api/v1",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "openai",
+    "name": "OpenAI",
+    "baseURL": "https://api.openai.com/v1",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "anthropic",
+    "name": "Anthropic / Claude",
+    "baseURL": "https://api.anthropic.com/v1",
+    "protocol": "anthropic",
+    "keyRequired": true
+  },
+  {
+    "id": "gemini",
+    "name": "Google Gemini",
+    "baseURL": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "groq",
+    "name": "Groq",
+    "baseURL": "https://api.groq.com/openai/v1",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "deepseek",
+    "name": "DeepSeek",
+    "baseURL": "https://api.deepseek.com",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "mistral",
+    "name": "Mistral",
+    "baseURL": "https://api.mistral.ai/v1",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "xai",
+    "name": "xAI / Grok",
+    "baseURL": "https://api.x.ai/v1",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "together",
+    "name": "Together AI",
+    "baseURL": "https://api.together.xyz/v1",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "fireworks",
+    "name": "Fireworks AI",
+    "baseURL": "https://api.fireworks.ai/inference/v1",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "cohere",
+    "name": "Cohere",
+    "baseURL": "https://api.cohere.ai/compatibility/v1",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "huggingface",
+    "name": "Hugging Face",
+    "baseURL": "https://router.huggingface.co/v1",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "sambanova",
+    "name": "SambaNova",
+    "baseURL": "https://api.sambanova.ai/v1",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "ollama-cloud",
+    "name": "Ollama Cloud",
+    "baseURL": "https://ollama.com/v1",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "ollama",
+    "name": "Ollama (LAN)",
+    "baseURL": "http://127.0.0.1:11434/v1",
+    "protocol": "openai",
+    "keyRequired": false
+  },
+  {
+    "id": "lmstudio",
+    "name": "LM Studio (LAN)",
+    "baseURL": "http://127.0.0.1:1234/v1",
+    "protocol": "openai",
+    "keyRequired": false
+  },
+  {
+    "id": "llamacpp",
+    "name": "llama.cpp (LAN)",
+    "baseURL": "http://127.0.0.1:8080/v1",
+    "protocol": "openai",
+    "keyRequired": false
+  },
+  {
+    "id": "vllm",
+    "name": "vLLM (LAN)",
+    "baseURL": "http://127.0.0.1:8000/v1",
+    "protocol": "openai",
+    "keyRequired": false
+  },
+  {
+    "id": "litellm",
+    "name": "LiteLLM",
+    "baseURL": "http://127.0.0.1:4000/v1",
+    "protocol": "openai",
+    "keyRequired": false
+  },
+  {
+    "id": "azure",
+    "name": "Azure OpenAI (v1)",
+    "baseURL": "",
+    "protocol": "azure",
+    "keyRequired": true
+  },
+  {
+    "id": "custom",
+    "name": "Custom / OpenAI-compatible",
+    "baseURL": "",
+    "protocol": "openai",
+    "keyRequired": false
+  },
+  {
+    "id": "custom-anthropic",
+    "name": "Custom / Anthropic-compatible",
+    "baseURL": "",
+    "protocol": "anthropic",
+    "keyRequired": false
+  }
+]

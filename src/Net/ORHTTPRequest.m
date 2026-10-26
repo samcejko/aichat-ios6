@@ -1,3 +1,4 @@
+#include <limits.h>
 #import "ORHTTPRequest.h"
 #import "ORTLSSocket.h"
 #import "ORCommon.h"
@@ -27,6 +28,7 @@ typedef NS_ENUM(NSInteger, ORChunkState) {
 @property (nonatomic) long long contentLength;      // -1 unknown
 @property (nonatomic) long long bodyReceived;
 @property (nonatomic) ORChunkState chunkState;
+@property (nonatomic) BOOL bodyError;
 @property (nonatomic) long long chunkRemaining;
 @end
 
@@ -77,13 +79,15 @@ typedef NS_ENUM(NSInteger, ORChunkState) {
 {
     NSMutableString *s = [NSMutableString string];
     [s appendFormat:@"%@ %@ HTTP/1.1\r\n", self.method ?: @"GET", self.path ?: @"/"];
-    [s appendFormat:@"Host: %@\r\n", self.host];
+    NSString *authority=[self.host rangeOfString:@":"].location!=NSNotFound?[NSString stringWithFormat:@"[%@]",self.host]:self.host;
+    if(self.port!=(self.secure?443:80))authority=[authority stringByAppendingFormat:@":%ld",(long)self.port];
+    [s appendFormat:@"Host: %@\r\n", authority];
     [s appendFormat:@"User-Agent: %@\r\n", [ORUtils userAgent]];
     [s appendString:@"Connection: close\r\n"];
     BOOL hasContentType = NO;
     for (NSString *key in self.headers) {
         if ([[key lowercaseString] isEqualToString:@"content-type"]) hasContentType = YES;
-        NSString *value = [[self.headers[key] description] stringByReplacingOccurrencesOfString:@"\n" withString:@" "];
+        NSString *value = [[[self.headers[key] description] stringByReplacingOccurrencesOfString:@"\n" withString:@" "] stringByReplacingOccurrencesOfString:@"\r" withString:@" "];
         [s appendFormat:@"%@: %@\r\n", key, value];
     }
     if (self.body) {
@@ -149,16 +153,33 @@ typedef NS_ENUM(NSInteger, ORChunkState) {
                 if (bytes[i] == '\r' && bytes[i + 1] == '\n') { lineEnd = i; break; }
             }
             if (lineEnd == NSNotFound) return NO;   // need more data
-            NSString *line = [[NSString alloc] initWithBytes:bytes length:lineEnd encoding:NSASCIIStringEncoding] ?: @"";
+            NSString *line = [[NSString alloc] initWithBytes:bytes length:lineEnd encoding:NSASCIIStringEncoding];
+            if (!line) { self.bodyError = YES; return YES; }
             [buffer replaceBytesInRange:NSMakeRange(0, lineEnd + 2) withBytes:NULL length:0];
             if (self.chunkState == ORChunkStateTrailer) {
                 if (line.length == 0) { self.chunkState = ORChunkStateDone; return YES; }
                 continue;
             }
-            if (line.length == 0) continue;   // tolerate stray blank lines
+            if (line.length == 0) { self.bodyError = YES; return YES; }
             NSRange semi = [line rangeOfString:@";"];
             NSString *hex = semi.location == NSNotFound ? line : [line substringToIndex:semi.location];
-            unsigned long long size = strtoull([hex UTF8String], NULL, 16);
+            // Parse every digit and reject overflow before narrowing to signed storage.
+            const char *digits = [hex UTF8String];
+            unsigned long long size = 0;
+            if (!digits || !*digits) { self.bodyError = YES; return YES; }
+            NSUInteger digitCount = [hex lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+            for (NSUInteger i = 0; i < digitCount; i++) {
+                unsigned char c = (unsigned char)digits[i];
+                unsigned int digit;
+                if (c >= '0' && c <= '9') digit = c - '0';
+                else if (c >= 'a' && c <= 'f') digit = c - 'a' + 10;
+                else if (c >= 'A' && c <= 'F') digit = c - 'A' + 10;
+                else { self.bodyError = YES; return YES; }
+                if (size > ((unsigned long long)LLONG_MAX - digit) / 16) {
+                    self.bodyError = YES; return YES;
+                }
+                size = size * 16 + digit;
+            }
             if (size == 0) {
                 self.chunkState = ORChunkStateTrailer;
                 continue;
@@ -178,6 +199,9 @@ typedef NS_ENUM(NSInteger, ORChunkState) {
         }
         if (self.chunkState == ORChunkStateDataEnd) {
             if (len < 2) return NO;
+            if (bytes[0] != '\r' || bytes[1] != '\n') {
+                self.bodyError = YES; return YES;
+            }
             // expect CRLF
             [buffer replaceBytesInRange:NSMakeRange(0, 2) withBytes:NULL length:0];
             self.chunkState = ORChunkStateSize;
@@ -315,7 +339,7 @@ typedef NS_ENUM(NSInteger, ORChunkState) {
         if ([self consumeBody:buffer]) bodyDone = YES;
     }
     free(tmp);
-    [self finishWithError:nil];
+    [self finishWithError:self.bodyError ? ORMakeError(ORErrorBadResponse, L(@"The server sent an invalid response.")) : nil];
 }
 
 @end
