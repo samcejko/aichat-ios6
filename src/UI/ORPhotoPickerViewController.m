@@ -7,6 +7,7 @@
 
 static const CGFloat kCellSize = 76.0;
 
+#if __IPHONE_OS_VERSION_MIN_REQUIRED >= 60000
 #pragma mark - Grid cell
 
 @interface ORPhotoCell : UICollectionViewCell
@@ -154,6 +155,54 @@ static const CGFloat kCellSize = 76.0;
 }
 
 @end
+
+#else
+#pragma mark - iOS 5 photo grid (rows of controls, no UICollectionView dependency)
+@interface ORPhotoGridViewController : UITableViewController
+@property(nonatomic,strong) ALAssetsLibrary *library;
+@property(nonatomic,strong) ALAssetsGroup *group;
+@property(nonatomic,strong) NSMutableArray *assets;
+@property(nonatomic,strong) NSMutableSet *selected;
+@property(nonatomic) NSUInteger maxSelection;
+@property(nonatomic,copy) void (^completion)(NSArray *images);
+@end
+@implementation ORPhotoGridViewController
+- (instancetype)init {if((self=[super initWithStyle:UITableViewStylePlain])){_selected=[NSMutableSet set];_assets=[NSMutableArray array];}return self;}
+- (void)viewDidLoad {[super viewDidLoad];self.title=[self.group valueForProperty:ALAssetsGroupPropertyName] ?: L(@"Photos");self.tableView.separatorStyle=UITableViewCellSeparatorStyleNone;self.tableView.backgroundColor=[[ORTheme shared] tableBackgroundColor];[self updateDoneButton];[self.group setAssetsFilter:[ALAssetsFilter allPhotos]];NSMutableArray *list=[NSMutableArray array];[self.group enumerateAssetsUsingBlock:^(ALAsset *asset,NSUInteger index,BOOL *stop){if(asset)[list addObject:asset];}];for(NSInteger i=list.count-1;i>=0;i--)[self.assets addObject:[list objectAtIndex:i]];[self.tableView reloadData];}
+- (NSUInteger)columns {return MAX(1,(NSUInteger)(self.tableView.bounds.size.width/(kCellSize+4)));}
+- (void)viewDidLayoutSubviews {[super viewDidLayoutSubviews];[self.tableView reloadData];}
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {return (self.assets.count+[self columns]-1)/[self columns];}
+- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {return kCellSize+4;}
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+ UITableViewCell *cell=[tableView dequeueReusableCellWithIdentifier:@"photo-row"];if(!cell)cell=[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"photo-row"];for(UIView *v in [cell.contentView.subviews copy])[v removeFromSuperview];cell.selectionStyle=UITableViewCellSelectionStyleNone;cell.backgroundColor=[UIColor clearColor];NSUInteger cols=[self columns];CGFloat gap=(tableView.bounds.size.width-cols*kCellSize)/(cols+1);
+ for(NSUInteger col=0;col<cols;col++){NSUInteger index=indexPath.row*cols+col;if(index>=self.assets.count)break;ALAsset *asset=self.assets[index];UIButton *button=[UIButton buttonWithType:UIButtonTypeCustom];button.frame=CGRectMake(gap+(kCellSize+gap)*col,2,kCellSize,kCellSize);button.tag=index;button.imageView.contentMode=UIViewContentModeScaleAspectFill;button.clipsToBounds=YES;[button setImage:[UIImage imageWithCGImage:asset.thumbnail] forState:UIControlStateNormal];button.layer.borderWidth=[self.selected containsObject:@(index)]?4:0;button.layer.borderColor=[[ORTheme shared] accentColor].CGColor;button.accessibilityLabel=[NSString stringWithFormat:@"%@ %lu",L(@"Photos"),(unsigned long)index+1];button.accessibilityTraits=UIAccessibilityTraitButton|([self.selected containsObject:@(index)]?UIAccessibilityTraitSelected:0);[button addTarget:self action:@selector(photoTapped:) forControlEvents:UIControlEventTouchUpInside];[cell.contentView addSubview:button];}return cell;
+}
+- (void)photoTapped:(UIButton *)button {NSNumber *key=@(button.tag);if([self.selected containsObject:key])[self.selected removeObject:key];else {if(self.maxSelection&&self.selected.count>=self.maxSelection){[ORUtils alertWithTitle:L(@"Limit reached") message:[NSString stringWithFormat:L(@"You can attach up to %lu photos at once."),(unsigned long)self.maxSelection]];return;}[self.selected addObject:key];}[self.tableView reloadData];[self updateDoneButton];}
+- (void)updateDoneButton
+{
+    NSString *title = self.selected.count ? [NSString stringWithFormat:@"%@ (%lu)", L(@"Add"), (unsigned long)self.selected.count] : L(@"Add");
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:title style:UIBarButtonItemStyleDone target:self action:@selector(doneTapped)];
+    self.navigationItem.rightBarButtonItem.enabled = self.selected.count > 0;
+}
+
+- (void)doneTapped
+{
+    NSArray *indexes = [[self.selected allObjects] sortedArrayUsingSelector:@selector(compare:)];
+    NSMutableArray *images = [NSMutableArray array];
+    for (NSNumber *n in indexes) {
+        ALAsset *asset = self.assets[[n unsignedIntegerValue]];
+        ALAssetRepresentation *rep = [asset defaultRepresentation];
+        CGImageRef cg = [rep fullScreenImage];   // already rotated, capped at screen size
+        if (!cg) cg = [rep fullResolutionImage];
+        if (!cg) continue;
+        [images addObject:[UIImage imageWithCGImage:cg]];
+    }
+    if (self.completion) self.completion(images);
+}
+
+@end
+
+#endif
 
 #pragma mark - Album list
 

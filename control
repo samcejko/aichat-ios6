@@ -1,9 +1,9 @@
 Package: com.samcejko.aichat
 Name: AI Chat
-Version: 0.4.0
+Version: 0.4.1
 Architecture: iphoneos-arm
-Description: Multi-provider AI chat client for iOS 6 (universal)
+Description: Multi-provider AI chat client for iOS 5-10 (universal)
 Maintainer: samcejko
 Author: samcejko
 Section: Utilities
-Depends: firmware (>= 6.0), firmware (<< 11.0)
+Depends: firmware (>= 5.0), firmware (<< 11.0)

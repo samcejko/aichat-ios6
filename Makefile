@@ -8,7 +8,7 @@ ifeq ($(THEOS_PACKAGE_SCHEME),rootless)
 TARGET := iphone:clang:16.5:14.0
 ARCHS := arm64
 else
-TARGET := iphone:clang:9.3:6.0
+TARGET := iphone:clang:9.3:5.0
 ARCHS := armv7
 endif
 DEBUG ?= 0
@@ -51,7 +51,7 @@ AIChat_CFLAGS := -Isrc -Isrc/Net -Isrc/Model -Isrc/Chat -Isrc/Markdown -Isrc/UI 
 # own sources by the pragma in src/ORCommon.h (vendored code only warns). src/Util/ORModern.m bridges the newer
 # iOS on its own terms and opts out. UIKit comes first everywhere because iosMath's UIColor+HexString.m tests
 # TARGET_OS_IPHONE without including anything (the iOS 16.5 SDK treats that as an error) and needs UIColor.
-AIChat_OBJCFLAGS := -fobjc-arc -Wunguarded-availability -include UIKit/UIKit.h
+AIChat_OBJCFLAGS := -fobjc-arc -Wunguarded-availability -include src/Util/ORLegacyCompatibility.h
 
 AIChat_LDFLAGS := -lz
 

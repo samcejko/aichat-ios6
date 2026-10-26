@@ -81,7 +81,7 @@ static const NSInteger kWebSearchAlertTag = 4201;
     self.tableView.delegate = self;
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
     self.tableView.backgroundColor = [UIColor clearColor];
-    [self.tableView registerClass:[ORMessageCell class] forCellReuseIdentifier:kCellId];
+
     [self.view addSubview:self.tableView];
 
     UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(backgroundTapped)];
@@ -564,7 +564,8 @@ static const NSInteger kWebSearchAlertTag = 4201;
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    ORMessageCell *cell = [tableView dequeueReusableCellWithIdentifier:kCellId forIndexPath:indexPath];
+    ORMessageCell *cell = (ORMessageCell *)[tableView dequeueReusableCellWithIdentifier:kCellId];
+    if(!cell)cell=[[ORMessageCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:kCellId];
     cell.delegate = self;
     [cell configureWithMessage:[self messageAtRow:indexPath.row] width:[self messageLayoutWidth]];
     return cell;

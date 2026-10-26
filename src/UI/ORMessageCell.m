@@ -104,10 +104,7 @@ static NSMutableDictionary *g_layoutCache = nil;
 static CGSize ORMeasure(NSAttributedString *text, CGFloat width)
 {
     if (!text.length) return CGSizeZero;
-    CGRect r = [text boundingRectWithSize:CGSizeMake(width, CGFLOAT_MAX)
-                                  options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading
-                                  context:nil];
-    return CGSizeMake(ceil(r.size.width), ceil(r.size.height) + 1);
+    return ORMeasureAttributed(text,width);
 }
 
 static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
@@ -134,7 +131,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
     if (self) {
         self.layer.cornerRadius = 5.0;
         self.clipsToBounds = YES;
-        _label = [[UILabel alloc] initWithFrame:CGRectZero];
+        _label = [[ORAttributedLabel alloc] initWithFrame:CGRectZero];
         _label.numberOfLines = 0;
         _label.backgroundColor = [UIColor clearColor];
         _label.lineBreakMode = NSLineBreakByCharWrapping;
@@ -427,7 +424,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         _reasoningView = [[UIView alloc] initWithFrame:CGRectZero];
         _reasoningView.layer.cornerRadius = 6;
         _reasoningView.hidden = YES;
-        _reasoningLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _reasoningLabel = [[ORAttributedLabel alloc] initWithFrame:CGRectZero];
         _reasoningLabel.numberOfLines = 0;
         _reasoningLabel.backgroundColor = [UIColor clearColor];
         [_reasoningView addSubview:_reasoningLabel];
@@ -441,7 +438,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         _blockViews = [NSMutableArray array];
         _attachmentViews = [NSMutableArray array];
 
-        _metaLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _metaLabel = [[ORAttributedLabel alloc] initWithFrame:CGRectZero];
         _metaLabel.font = [[ORTheme shared] smallFont];
         _metaLabel.backgroundColor = [UIColor clearColor];
         _metaLabel.hidden = YES;
@@ -456,7 +453,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         _noteView = [[UIView alloc] initWithFrame:CGRectZero];
         _noteView.layer.cornerRadius = 6;
         _noteView.hidden = YES;
-        _noteLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _noteLabel = [[ORAttributedLabel alloc] initWithFrame:CGRectZero];
         _noteLabel.numberOfLines = 0;
         _noteLabel.backgroundColor = [UIColor clearColor];
         [_noteView addSubview:_noteLabel];
@@ -464,7 +461,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
         UITapGestureRecognizer *noteTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(noteTapped:)];
         [_noteView addGestureRecognizer:noteTap];
 
-        _statusLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _statusLabel = [[ORAttributedLabel alloc] initWithFrame:CGRectZero];
         _statusLabel.backgroundColor = [UIColor clearColor];
         _statusLabel.hidden = YES;
         [_bubbleView addSubview:_statusLabel];
@@ -531,14 +528,14 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
             UIView *box = [[UIView alloc] initWithFrame:f];
             box.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.22];
             box.layer.cornerRadius = 6;
-            UILabel *name = [[UILabel alloc] initWithFrame:CGRectMake(8, 3, f.size.width - 16, 18)];
+            UILabel *name = [[ORAttributedLabel alloc] initWithFrame:CGRectMake(8, 3, f.size.width - 16, 18)];
             name.font = [UIFont boldSystemFontOfSize:12];
             name.textColor = textColor;
             name.backgroundColor = [UIColor clearColor];
             name.text = a.displayName;
             name.lineBreakMode = NSLineBreakByTruncatingMiddle;
             [box addSubview:name];
-            UILabel *size = [[UILabel alloc] initWithFrame:CGRectMake(8, 20, f.size.width - 16, 16)];
+            UILabel *size = [[ORAttributedLabel alloc] initWithFrame:CGRectMake(8, 20, f.size.width - 16, 16)];
             size.font = [UIFont systemFontOfSize:11];
             size.textColor = textColor;
             size.backgroundColor = [UIColor clearColor];
@@ -600,7 +597,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
                     UIView *box = [[UIView alloc] initWithFrame:f];
                     box.backgroundColor = [theme codeBackgroundColorInUserBubble:isUser];
                     box.layer.cornerRadius = 6;
-                    UILabel *l = [[UILabel alloc] initWithFrame:CGRectInset(box.bounds, 8, 4)];
+                    UILabel *l = [[ORAttributedLabel alloc] initWithFrame:CGRectInset(box.bounds, 8, 4)];
                     l.numberOfLines = 2;
                     l.font = [theme smallFont];
                     l.textColor = [theme secondaryTextColor];
@@ -660,7 +657,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
                 UIView *bar = [[UIView alloc] initWithFrame:CGRectMake(2, 0, 3, f.size.height)];
                 bar.backgroundColor = [textColor colorWithAlphaComponent:0.35];
                 [wrap addSubview:bar];
-                UILabel *l = [[UILabel alloc] initWithFrame:wrap.bounds];
+                UILabel *l = [[ORAttributedLabel alloc] initWithFrame:wrap.bounds];
                 l.numberOfLines = 0;
                 l.backgroundColor = [UIColor clearColor];
                 l.attributedText = bf.block.text;
@@ -669,7 +666,7 @@ static NSAttributedString *ORCodeAttributed(NSString *raw, UIColor *color)
                 break;
             }
             default: {
-                UILabel *l = [[UILabel alloc] initWithFrame:f];
+                UILabel *l = [[ORAttributedLabel alloc] initWithFrame:f];
                 l.numberOfLines = 0;
                 l.backgroundColor = [UIColor clearColor];
                 l.attributedText = bf.block.text;
