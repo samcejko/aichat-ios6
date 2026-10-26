@@ -7,6 +7,7 @@
 @end
 NSString *ORFontKey(void);NSString *ORColorKey(void);NSString *ORParagraphKey(void);NSString *ORBackgroundKey(void);NSString *ORUnderlineKey(void);NSString *ORStrikeKey(void);
 NSAttributedString *ORCoreTextString(NSAttributedString *text);
+UIImage *ORStretchImage(UIImage *image,UIEdgeInsets insets);
 CGSize ORMeasureAttributed(NSAttributedString *text,CGFloat width);
 @interface ORAttributedLabel : UILabel
 @property(nonatomic,copy) NSAttributedString *attributedText;

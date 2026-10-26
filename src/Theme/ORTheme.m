@@ -43,7 +43,7 @@ static UIImage *ORRoundedGradientImage(UIColor *top, UIColor *bottom, UIColor *s
     UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
     CGFloat cap = radius + 5;
-    return [img resizableImageWithCapInsets:UIEdgeInsetsMake(cap, cap, cap, cap) resizingMode:UIImageResizingModeStretch];
+    return ORStretchImage(img,UIEdgeInsetsMake(cap, cap, cap, cap));
 }
 
 // A vertical bar background: top hairline, gradient body.
@@ -63,7 +63,7 @@ static UIImage *ORBarBackgroundImage(UIColor *top, UIColor *bottom, UIColor *lin
     UIRectFill(CGRectMake(0, 0, size.width, 1));
     UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    return [img resizableImageWithCapInsets:UIEdgeInsetsMake(2, 1, 2, 1) resizingMode:UIImageResizingModeStretch];
+    return ORStretchImage(img,UIEdgeInsetsMake(2, 1, 2, 1));
 }
 
 @interface ORTheme ()

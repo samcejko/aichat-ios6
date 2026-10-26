@@ -33,3 +33,5 @@ CGSize ORMeasureAttributed(NSAttributedString *text,CGFloat width) {
  NSAttributedString *ct=ORCoreTextString(_earlierAttributedText);CTFramesetterRef frames=CTFramesetterCreateWithAttributedString((__bridge CFAttributedStringRef)ct);CGContextRef context=UIGraphicsGetCurrentContext();CGContextSaveGState(context);CGContextSetTextMatrix(context,CGAffineTransformIdentity);CGContextTranslateCTM(context,0,self.bounds.size.height);CGContextScaleCTM(context,1,-1);CGMutablePathRef path=CGPathCreateMutable();CGPathAddRect(path,NULL,self.bounds);CTFrameRef frame=CTFramesetterCreateFrame(frames,CFRangeMake(0,0),path,NULL);CTFrameDraw(frame,context);CFRelease(frame);CGPathRelease(path);CFRelease(frames);CGContextRestoreGState(context);
 }
 @end
+
+UIImage *ORStretchImage(UIImage *image,UIEdgeInsets insets){if([image respondsToSelector:@selector(resizableImageWithCapInsets:resizingMode:)])return [image resizableImageWithCapInsets:insets resizingMode:UIImageResizingModeStretch];return [image resizableImageWithCapInsets:insets];}
