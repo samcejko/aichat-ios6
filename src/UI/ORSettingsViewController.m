@@ -175,17 +175,17 @@ typedef NS_ENUM(NSInteger, ORSection) {
         } else {
             self.keyInfo = info;
             NSMutableArray *parts = [NSMutableArray array];
-            NSDictionary *daily = info[@"free_model_daily_requests"];
+            NSDictionary *daily = [info objectForKey:@"free_model_daily_requests"];
             if ([daily isKindOfClass:[NSDictionary class]]) {
-                [parts addObject:[NSString stringWithFormat:L(@"Free today %@/%@"), daily[@"used"] ?: @"?", daily[@"limit"] ?: @"?"]];
+                [parts addObject:[NSString stringWithFormat:L(@"Free today %@/%@"), [daily objectForKey:@"used"] ?: @"?", [daily objectForKey:@"limit"] ?: @"?"]];
             }
-            double usage = [info[@"usage"] doubleValue];
+            double usage = [[info objectForKey:@"usage"] doubleValue];
             [parts addObject:[NSString stringWithFormat:L(@"$%.2f used"), usage]];
-            id limit = info[@"limit"];
+            id limit = [info objectForKey:@"limit"];
             if ([limit isKindOfClass:[NSNumber class]]) [parts addObject:[NSString stringWithFormat:L(@"limit $%.2f"), [limit doubleValue]]];
-            if ([info[@"is_free_tier"] boolValue]) [parts addObject:L(@"free tier")];
+            if ([[info objectForKey:@"is_free_tier"] boolValue]) [parts addObject:L(@"free tier")];
             self.keyStatusText = [parts componentsJoinedByString:@" · "];
-            NSString *label = info[@"label"];
+            NSString *label = [info objectForKey:@"label"];
             if ([label isKindOfClass:[NSString class]]) [ORSettings shared].apiKeyLabel = label;
         }
         [self.tableView reloadData];
@@ -317,7 +317,7 @@ typedef NS_ENUM(NSInteger, ORSection) {
                 cell.textLabel.text = L(@"Persona");
                 NSDictionary *p = [s activePersona];
                 NSString *prompt = [s activeSystemPrompt];
-                cell.detailTextLabel.text = prompt.length ? [NSString stringWithFormat:@"%@ · %@", p[@"name"], [ORUtils truncate:prompt to:60]] : (p[@"name"] ?: L(@"None"));
+                cell.detailTextLabel.text = prompt.length ? [NSString stringWithFormat:@"%@ · %@", [p objectForKey:@"name"], [ORUtils truncate:prompt to:60]] : ([p objectForKey:@"name"] ?: L(@"None"));
                 cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
             } else if (row == 6) {
                 cell.textLabel.text = L(@"Web search");

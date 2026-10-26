@@ -301,7 +301,7 @@ static const NSInteger kWebSearchAlertTag = 4201;
     if (!c || c.isEmpty) return;
     BOOL exists = NO;
     for (NSDictionary *d in [[ORStore shared] conversationSummaries]) {
-        if ([d[@"id"] isEqualToString:c.conversationId]) { exists = YES; break; }
+        if ([[d objectForKey:@"id"] isEqualToString:c.conversationId]) { exists = YES; break; }
     }
     if (!exists && !self.engine.isBusy) [self startConversationResuming:NO];
 }
@@ -827,7 +827,7 @@ static const NSInteger kWebSearchAlertTag = 4201;
 #endif
     if (pasteboardHasImage) [sheet addButtonWithTitle:L(@"Paste Image")];
     NSDictionary *persona = [[ORSettings shared] activePersona];
-    NSString *personaTitle = [NSString stringWithFormat:@"%@: %@", L(@"Persona"), persona[@"name"] ?: L(@"No persona")];
+    NSString *personaTitle = [NSString stringWithFormat:@"%@: %@", L(@"Persona"), [persona objectForKey:@"name"] ?: L(@"No persona")];
     [sheet addButtonWithTitle:personaTitle];
     sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
     if (ORIsPad()) [sheet showFromRect:bar.attachButton.frame inView:bar animated:YES];

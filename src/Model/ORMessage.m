@@ -18,22 +18,22 @@
 {
     if (![json isKindOfClass:[NSDictionary class]]) return nil;
     ORMessage *m = [[ORMessage alloc] init];
-    m.messageId = json[@"id"] ?: [ORUtils uuid];
-    m.role = (ORMessageRole)[json[@"role"] integerValue];
-    m.text = [json[@"text"] isKindOfClass:[NSString class]] ? json[@"text"] : @"";
-    m.reasoning = [json[@"reasoning"] isKindOfClass:[NSString class]] ? json[@"reasoning"] : nil;
-    m.modelId = [json[@"model"] isKindOfClass:[NSString class]] ? json[@"model"] : nil;
-    m.createdAt = [NSDate dateWithTimeIntervalSince1970:[json[@"created"] doubleValue]];
-    m.visionNote = [json[@"visionNote"] isKindOfClass:[NSString class]] ? json[@"visionNote"] : nil;
-    m.visionModelId = [json[@"visionModel"] isKindOfClass:[NSString class]] ? json[@"visionModel"] : nil;
-    m.promptTokens = [json[@"promptTokens"] integerValue];
-    m.completionTokens = [json[@"completionTokens"] integerValue];
-    m.cost = [json[@"cost"] doubleValue];
-    m.hasUsage = [json[@"hasUsage"] boolValue];
-    m.finishReason = [json[@"finishReason"] isKindOfClass:[NSString class]] ? json[@"finishReason"] : nil;
-    m.usedWebSearch = [json[@"web"] boolValue];
+    m.messageId = [json objectForKey:@"id"] ?: [ORUtils uuid];
+    m.role = (ORMessageRole)[[json objectForKey:@"role"] integerValue];
+    m.text = [[json objectForKey:@"text"] isKindOfClass:[NSString class]] ? [json objectForKey:@"text"] : @"";
+    m.reasoning = [[json objectForKey:@"reasoning"] isKindOfClass:[NSString class]] ? [json objectForKey:@"reasoning"] : nil;
+    m.modelId = [[json objectForKey:@"model"] isKindOfClass:[NSString class]] ? [json objectForKey:@"model"] : nil;
+    m.createdAt = [NSDate dateWithTimeIntervalSince1970:[[json objectForKey:@"created"] doubleValue]];
+    m.visionNote = [[json objectForKey:@"visionNote"] isKindOfClass:[NSString class]] ? [json objectForKey:@"visionNote"] : nil;
+    m.visionModelId = [[json objectForKey:@"visionModel"] isKindOfClass:[NSString class]] ? [json objectForKey:@"visionModel"] : nil;
+    m.promptTokens = [[json objectForKey:@"promptTokens"] integerValue];
+    m.completionTokens = [[json objectForKey:@"completionTokens"] integerValue];
+    m.cost = [[json objectForKey:@"cost"] doubleValue];
+    m.hasUsage = [[json objectForKey:@"hasUsage"] boolValue];
+    m.finishReason = [[json objectForKey:@"finishReason"] isKindOfClass:[NSString class]] ? [json objectForKey:@"finishReason"] : nil;
+    m.usedWebSearch = [[json objectForKey:@"web"] boolValue];
     NSMutableArray *atts = [NSMutableArray array];
-    for (id a in (json[@"attachments"] ?: @[])) {
+    for (id a in ([json objectForKey:@"attachments"] ?: @[])) {
         ORAttachment *att = [ORAttachment attachmentFromJSON:a];
         if (att) [atts addObject:att];
     }

@@ -21,15 +21,15 @@
 {
     if (![json isKindOfClass:[NSDictionary class]]) return nil;
     ORConversation *c = [[ORConversation alloc] init];
-    c.conversationId = json[@"id"];
+    c.conversationId = [json objectForKey:@"id"];
     if (!c.conversationId) return nil;
-    c.providerIdentity=[json[@"providerIdentity"] isKindOfClass:[NSString class]]?json[@"providerIdentity"]:[ORProvider identityForID:@"openrouter" baseURL:@"https://openrouter.ai/api/v1" protocol:@"openai"];
-    c.title = [json[@"title"] isKindOfClass:[NSString class]] ? json[@"title"] : nil;
-    c.modelId = [json[@"model"] isKindOfClass:[NSString class]] ? json[@"model"] : nil;
-    c.createdAt = [NSDate dateWithTimeIntervalSince1970:[json[@"created"] doubleValue]];
-    c.updatedAt = [NSDate dateWithTimeIntervalSince1970:[json[@"updated"] doubleValue]];
+    c.providerIdentity=[[json objectForKey:@"providerIdentity"] isKindOfClass:[NSString class]]?[json objectForKey:@"providerIdentity"]:[ORProvider identityForID:@"openrouter" baseURL:@"https://openrouter.ai/api/v1" protocol:@"openai"];
+    c.title = [[json objectForKey:@"title"] isKindOfClass:[NSString class]] ? [json objectForKey:@"title"] : nil;
+    c.modelId = [[json objectForKey:@"model"] isKindOfClass:[NSString class]] ? [json objectForKey:@"model"] : nil;
+    c.createdAt = [NSDate dateWithTimeIntervalSince1970:[[json objectForKey:@"created"] doubleValue]];
+    c.updatedAt = [NSDate dateWithTimeIntervalSince1970:[[json objectForKey:@"updated"] doubleValue]];
     c.messages = [NSMutableArray array];
-    for (id m in (json[@"messages"] ?: @[])) {
+    for (id m in ([json objectForKey:@"messages"] ?: @[])) {
         ORMessage *msg = [ORMessage messageFromJSON:m];
         if (!msg) continue;
         if (msg.role == ORMessageRoleAssistant && msg.text.length == 0) continue;

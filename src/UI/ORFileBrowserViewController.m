@@ -63,7 +63,7 @@
         else [files addObject:e];
     }
     NSComparator byName = ^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
-        return [a[@"name"] compare:b[@"name"] options:NSCaseInsensitiveSearch | NSNumericSearch];
+        return [[a objectForKey:@"name"] compare:[b objectForKey:@"name"] options:NSCaseInsensitiveSearch | NSNumericSearch];
     };
     [dirs sortUsingComparator:byName];
     [files sortUsingComparator:byName];
@@ -100,14 +100,14 @@
         cell.textLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
     }
     NSDictionary *e = self.entries[indexPath.row];
-    BOOL isDir = [e[@"isDir"] boolValue];
-    cell.textLabel.text = e[@"name"];
+    BOOL isDir = [[e objectForKey:@"isDir"] boolValue];
+    cell.textLabel.text = [e objectForKey:@"name"];
     if (isDir) {
-        NSArray *inner = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:e[@"path"] error:NULL];
+        NSArray *inner = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:[e objectForKey:@"path"] error:NULL];
         cell.detailTextLabel.text = [NSString stringWithFormat:L(@"Folder · %lu items"), (unsigned long)inner.count];
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     } else {
-        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · %@", [ORUtils formatFileSize:[e[@"size"] unsignedLongLongValue]], [ORUtils shortDateString:e[@"date"]]];
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · %@", [ORUtils formatFileSize:[[e objectForKey:@"size"] unsignedLongLongValue]], [ORUtils shortDateString:[e objectForKey:@"date"]]];
         cell.accessoryType = UITableViewCellAccessoryNone;
     }
     [[ORTheme shared] styleCell:cell];
@@ -119,14 +119,14 @@
 {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     NSDictionary *e = self.entries[indexPath.row];
-    if ([e[@"isDir"] boolValue]) {
+    if ([[e objectForKey:@"isDir"] boolValue]) {
         ORFileBrowserViewController *sub = [[ORFileBrowserViewController alloc] init];
-        sub.directory = e[@"path"];
+        sub.directory = [e objectForKey:@"path"];
         sub.completion = self.completion;
         [self.navigationController pushViewController:sub animated:YES];
         return;
     }
-    if (self.completion) self.completion(e[@"path"]);
+    if (self.completion) self.completion([e objectForKey:@"path"]);
 }
 
 @end

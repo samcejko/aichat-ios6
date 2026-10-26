@@ -138,7 +138,7 @@ static const NSInteger kMaxRedirects = 4;
         ORImageLoader *strongSelf = weakSelf;
         if (!strongSelf) return;
         if (!error && status >= 300 && status < 400 && redirects < kMaxRedirects) {
-            NSString *location = req.responseHeaders[@"location"];
+            NSString *location = [req.responseHeaders objectForKey:@"location"];
             if (location.length) {
                 NSURL *next = [NSURL URLWithString:location relativeToURL:u];
                 strongSelf.redirectTargets[original] = [next absoluteString] ?: location;

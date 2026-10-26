@@ -44,7 +44,7 @@
     NSMutableArray *idx = [NSMutableArray array];
     if ([json isKindOfClass:[NSArray class]]) {
         for (id item in json) {
-            if ([item isKindOfClass:[NSDictionary class]] && item[@"id"]) [idx addObject:[item mutableCopy]];
+            if ([item isKindOfClass:[NSDictionary class]] && [item objectForKey:@"id"]) [idx addObject:[item mutableCopy]];
         }
     } else {
         // Rebuild from files if the index is missing/corrupt.
@@ -63,7 +63,7 @@
 - (void)sortIndex
 {
     [self.index sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
-        double ua = [a[@"updated"] doubleValue], ub = [b[@"updated"] doubleValue];
+        double ua = [[a objectForKey:@"updated"] doubleValue], ub = [[b objectForKey:@"updated"] doubleValue];
         if (ua == ub) return NSOrderedSame;
         return ua > ub ? NSOrderedAscending : NSOrderedDescending;
     }];
@@ -126,7 +126,7 @@
 
     NSInteger existing = NSNotFound;
     for (NSUInteger i = 0; i < self.index.count; i++) {
-        if ([self.index[i][@"id"] isEqualToString:conversation.conversationId]) { existing = i; break; }
+        if ([[self.index[i] objectForKey:@"id"] isEqualToString:conversation.conversationId]) { existing = i; break; }
     }
     if (existing != NSNotFound) [self.index removeObjectAtIndex:existing];
     [self.index insertObject:[summary mutableCopy] atIndex:0];
@@ -145,7 +145,7 @@
         [[NSFileManager defaultManager] removeItemAtPath:path error:NULL];
     });
     NSMutableArray *keep = [NSMutableArray array];
-    for (NSDictionary *d in self.index) if (![d[@"id"] isEqualToString:conversationId]) [keep addObject:d];
+    for (NSDictionary *d in self.index) if (![[d objectForKey:@"id"] isEqualToString:conversationId]) [keep addObject:d];
     self.index = keep;
     [self writeIndex];
 }

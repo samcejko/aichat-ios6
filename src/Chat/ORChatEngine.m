@@ -237,7 +237,7 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
 
 - (NSDictionary *)firstChoiceOf:(NSDictionary *)json
 {
-    NSArray *choices = json[@"choices"];
+    NSArray *choices = [json objectForKey:@"choices"];
     if (![choices isKindOfClass:[NSArray class]] || !choices.count) return nil;
     id first = choices[0];
     return [first isKindOfClass:[NSDictionary class]] ? first : nil;
@@ -245,9 +245,9 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
 
 - (NSString *)contentStringFromResponse:(NSDictionary *)json
 {
-    NSDictionary *msg = [self firstChoiceOf:json][@"message"];
+    NSDictionary *msg = [[self firstChoiceOf:json] objectForKey:@"message"];
     if (![msg isKindOfClass:[NSDictionary class]]) return nil;
-    id content = msg[@"content"];
+    id content = [msg objectForKey:@"content"];
     if ([content isKindOfClass:[NSString class]]) return content;
     if ([content isKindOfClass:[NSArray class]]) {
         NSMutableString *s = [NSMutableString string];
@@ -472,12 +472,12 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
     self.activeRequest = [[OROpenRouterClient shared] chatCompletionWithBody:body stream:stream onDelta:^(NSDictionary *chunk) {
         NSDictionary *first = [self firstChoiceOf:chunk];
         if (!first) return;
-        id fr = first[@"finish_reason"];
+        id fr = [first objectForKey:@"finish_reason"];
         if ([fr isKindOfClass:[NSString class]]) assistant.finishReason = fr;
-        NSDictionary *delta = first[@"delta"];
+        NSDictionary *delta = [first objectForKey:@"delta"];
         if (![delta isKindOfClass:[NSDictionary class]]) return;
-        id content = delta[@"content"];
-        id reasoning = delta[@"reasoning"] ?: delta[@"reasoning_content"];
+        id content = [delta objectForKey:@"content"];
+        id reasoning = [delta objectForKey:@"reasoning"] ?: [delta objectForKey:@"reasoning_content"];
         BOOL changed = NO;
         if ([content isKindOfClass:[NSString class]] && [content length]) {
             assistant.text = [assistant.text stringByAppendingString:content];
@@ -488,7 +488,7 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
             if (!assistant.text.length) assistant.statusText = L(@"Reasoning…");
             changed = YES;
         }
-        if (delta[@"images"]) [self collectImagesFrom:delta[@"images"]];
+        if ([delta objectForKey:@"images"]) [self collectImagesFrom:[delta objectForKey:@"images"]];
         if (changed) {
             if (assistant.text.length) assistant.statusText = nil;
             [self scheduleUpdate];
@@ -501,20 +501,20 @@ NSString * const ORChatEngineDidFinishNotification = @"ORChatEngineDidFinishNoti
             NSString *text = [self contentStringFromResponse:finalJSON] ?: @"";
             assistant.text = continuing ? [assistant.text stringByAppendingString:text] : text;
             NSDictionary *first = [self firstChoiceOf:finalJSON];
-            id fr = first[@"finish_reason"];
+            id fr = [first objectForKey:@"finish_reason"];
             if ([fr isKindOfClass:[NSString class]]) assistant.finishReason = fr;
-            NSDictionary *msg = first[@"message"];
+            NSDictionary *msg = [first objectForKey:@"message"];
             if ([msg isKindOfClass:[NSDictionary class]]) {
-                id r = msg[@"reasoning"] ?: msg[@"reasoning_content"];
+                id r = [msg objectForKey:@"reasoning"] ?: [msg objectForKey:@"reasoning_content"];
                 if ([r isKindOfClass:[NSString class]] && [r length]) assistant.reasoning = r;
-                if (msg[@"images"]) [self collectImagesFrom:msg[@"images"]];
+                if ([msg objectForKey:@"images"]) [self collectImagesFrom:[msg objectForKey:@"images"]];
             }
         }
-        NSDictionary *usage = finalJSON[@"usage"];
+        NSDictionary *usage = [finalJSON objectForKey:@"usage"];
         if ([usage isKindOfClass:[NSDictionary class]]) {
-            assistant.promptTokens = [usage[@"prompt_tokens"] integerValue];
-            assistant.completionTokens = [usage[@"completion_tokens"] integerValue];
-            assistant.cost = [usage[@"cost"] doubleValue];
+            assistant.promptTokens = [[usage objectForKey:@"prompt_tokens"] integerValue];
+            assistant.completionTokens = [[usage objectForKey:@"completion_tokens"] integerValue];
+            assistant.cost = [[usage objectForKey:@"cost"] doubleValue];
             assistant.hasUsage = YES;
         }
         [self storeGeneratedImagesOn:assistant];

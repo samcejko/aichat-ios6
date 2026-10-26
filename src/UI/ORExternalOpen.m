@@ -74,9 +74,9 @@ static BOOL ORHostMatches(NSString *host, NSArray *hosts)
     if (!url.host.length) return apps;
     UIApplication *app = [UIApplication sharedApplication];
     for (NSDictionary *sister in ORSisterApps()) {
-        if ([sister[@"name"] isEqualToString:@"AI Chat"]) continue;
-        if (!ORHostMatches(url.host, sister[@"hosts"])) continue;
-        if (![app canOpenURL:[NSURL URLWithString:[sister[@"scheme"] stringByAppendingString:@":open"]]]) continue;
+        if ([[sister objectForKey:@"name"] isEqualToString:@"AI Chat"]) continue;
+        if (!ORHostMatches(url.host, [sister objectForKey:@"hosts"])) continue;
+        if (![app canOpenURL:[NSURL URLWithString:[[sister objectForKey:@"scheme"] stringByAppendingString:@":open"]]]) continue;
         [apps addObject:sister];
     }
     return apps;
@@ -145,8 +145,8 @@ static BOOL ORHostMatches(NSString *host, NSArray *hosts)
     NSMutableArray *actions = [NSMutableArray array];
     UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:url.absoluteString delegate:open cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     for (NSDictionary *sister in sisters) {
-        [sheet addButtonWithTitle:[NSString stringWithFormat:L(@"Open in %@"), sister[@"name"]]];
-        [actions addObject:[@"app:" stringByAppendingString:sister[@"scheme"]]];
+        [sheet addButtonWithTitle:[NSString stringWithFormat:L(@"Open in %@"), [sister objectForKey:@"name"]]];
+        [actions addObject:[@"app:" stringByAppendingString:[sister objectForKey:@"scheme"]]];
     }
     if (copy) { [sheet addButtonWithTitle:L(@"Copy link")]; [actions addObject:@"copy"]; }
     [sheet addButtonWithTitle:L(@"Open in Safari")];

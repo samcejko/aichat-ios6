@@ -231,7 +231,7 @@ static NSString *ORLocalName(NSString *qname)
         } else if ([n isEqualToString:@"br"] || [n isEqualToString:@"cr"]) {
             [self.paragraph appendString:@"\n"];
         } else if ([n isEqualToString:@"pStyle"]) {
-            NSString *val = [attributeDict[@"w:val"] lowercaseString];
+            NSString *val = [[attributeDict objectForKey:@"w:val"] lowercaseString];
             if ([val hasPrefix:@"heading"] || [val hasPrefix:@"nadpis"] || [val hasPrefix:@"title"]) {
                 NSInteger level = [[val stringByTrimmingCharactersInSet:[NSCharacterSet letterCharacterSet]] integerValue];
                 if (level < 1) level = 1;
@@ -274,7 +274,7 @@ static NSString *ORLocalName(NSString *qname)
         if ([n isEqualToString:@"p"] || [n isEqualToString:@"h"]) {
             [self flushParagraph];
             if ([n isEqualToString:@"h"]) {
-                NSInteger level = [attributeDict[@"text:outline-level"] integerValue];
+                NSInteger level = [[attributeDict objectForKey:@"text:outline-level"] integerValue];
                 if (level < 1) level = 1;
                 if (level > 6) level = 6;
                 self.paragraphPrefix = [[@"" stringByPaddingToLength:level withString:@"#" startingAtIndex:0] stringByAppendingString:@" "];
@@ -295,7 +295,7 @@ static NSString *ORLocalName(NSString *qname)
             self.tableDepth++;
             self.headerRowDone = NO;
             self.tableRowsEmitted = 0;
-            NSString *name = attributeDict[@"table:name"];
+            NSString *name = [attributeDict objectForKey:@"table:name"];
             if (name.length) [self.output appendFormat:@"\n## %@\n\n", name];
             else [self.output appendString:@"\n"];
         } else if ([n isEqualToString:@"table-row"]) {
@@ -431,10 +431,10 @@ static NSInteger ORColumnIndex(NSString *ref)
         self.rowCells = [NSMutableDictionary dictionary];
         self.currentCol = -1;
     } else if ([n isEqualToString:@"c"]) {
-        NSString *ref = attributeDict[@"r"];
+        NSString *ref = [attributeDict objectForKey:@"r"];
         NSInteger col = ref ? ORColumnIndex(ref) : self.currentCol + 1;
         self.currentCol = col;
-        self.cellType = attributeDict[@"t"] ?: @"n";
+        self.cellType = [attributeDict objectForKey:@"t"] ?: @"n";
         self.value = [NSMutableString string];
     } else if ([n isEqualToString:@"v"] || [n isEqualToString:@"t"]) {
         self.inValue = YES;
@@ -504,14 +504,14 @@ static NSInteger ORColumnIndex(NSString *ref)
     NSString *n = ORLocalName(elementName);
     if ([n isEqualToString:@"sheet"]) {
         if (!self.sheets) self.sheets = [NSMutableArray array];
-        NSString *rid = attributeDict[@"r:id"];
+        NSString *rid = [attributeDict objectForKey:@"r:id"];
         if (!rid) {
             for (NSString *k in attributeDict) if ([k hasSuffix:@":id"]) { rid = attributeDict[k]; break; }
         }
-        [self.sheets addObject:@{ @"name": attributeDict[@"name"] ?: @"Sheet", @"rid": rid ?: @"" }];
+        [self.sheets addObject:@{ @"name": [attributeDict objectForKey:@"name"] ?: @"Sheet", @"rid": rid ?: @"" }];
     } else if ([n isEqualToString:@"Relationship"]) {
         if (!self.rels) self.rels = [NSMutableDictionary dictionary];
-        NSString *rid = attributeDict[@"Id"], *target = attributeDict[@"Target"];
+        NSString *rid = [attributeDict objectForKey:@"Id"], *target = [attributeDict objectForKey:@"Target"];
         if (rid && target) self.rels[rid] = target;
     }
 }
@@ -615,11 +615,11 @@ static NSInteger ORColumnIndex(NSString *ref)
 
     NSMutableArray *sheetFiles = [NSMutableArray array];   // dicts name, entry
     for (NSDictionary *s in wb.sheets) {
-        NSString *target = wb.rels[s[@"rid"]];
+        NSString *target = wb.rels[[s objectForKey:@"rid"]];
         if (target) {
             if ([target hasPrefix:@"/"]) target = [target substringFromIndex:1];
             else if (![target hasPrefix:@"xl/"]) target = [@"xl/" stringByAppendingString:target];
-            [sheetFiles addObject:@{ @"name": s[@"name"], @"entry": target }];
+            [sheetFiles addObject:@{ @"name": [s objectForKey:@"name"], @"entry": target }];
         }
     }
     if (!sheetFiles.count) {
@@ -634,8 +634,8 @@ static NSInteger ORColumnIndex(NSString *ref)
     for (NSDictionary *s in sheetFiles) {
         ORSheetParser *sp = [[ORSheetParser alloc] init];
         sp.sharedStrings = shared;
-        NSString *table = [sp parse:[zip dataForEntry:s[@"entry"]]];
-        [out appendFormat:@"## %@\n\n%@\n", s[@"name"], table.length ? table : @"(empty)\n"];
+        NSString *table = [sp parse:[zip dataForEntry:[s objectForKey:@"entry"]]];
+        [out appendFormat:@"## %@\n\n%@\n", [s objectForKey:@"name"], table.length ? table : @"(empty)\n"];
         if (sp.rowsEmitted > kMaxSheetRows) [out appendFormat:@"(%ld more rows omitted)\n\n", (long)(sp.rowsEmitted - kMaxSheetRows)];
         if (out.length > kMaxOutputChars) break;
     }

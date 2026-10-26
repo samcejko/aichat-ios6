@@ -105,12 +105,12 @@
         cell.detailTextLabel.font = [UIFont systemFontOfSize:12];
     }
     NSDictionary *d = self.summaries[indexPath.row];
-    cell.textLabel.text = [d[@"title"] length] ? d[@"title"] : L(@"New chat");
-    NSDate *date = [NSDate dateWithTimeIntervalSince1970:[d[@"updated"] doubleValue]];
-    ORModelInfo *m = [[ORModelCatalog shared] modelWithId:d[@"model"]];
-    NSString *modelName = m ? [m displayName] : (d[@"model"] ?: @"");
-    cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · %@ · %@", [ORUtils shortDateString:date], modelName, [ORUtils truncate:d[@"preview"] to:60]];
-    cell.accessoryType = [d[@"id"] isEqualToString:self.currentConversationId] ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
+    cell.textLabel.text = [[d objectForKey:@"title"] length] ? [d objectForKey:@"title"] : L(@"New chat");
+    NSDate *date = [NSDate dateWithTimeIntervalSince1970:[[d objectForKey:@"updated"] doubleValue]];
+    ORModelInfo *m = [[ORModelCatalog shared] modelWithId:[d objectForKey:@"model"]];
+    NSString *modelName = m ? [m displayName] : ([d objectForKey:@"model"] ?: @"");
+    cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · %@ · %@", [ORUtils shortDateString:date], modelName, [ORUtils truncate:[d objectForKey:@"preview"] to:60]];
+    cell.accessoryType = [[d objectForKey:@"id"] isEqualToString:self.currentConversationId] ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
     [[ORTheme shared] styleCell:cell];
     cell.detailTextLabel.textColor = [[ORTheme shared] secondaryTextColor];
     return cell;
@@ -120,7 +120,7 @@
 {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     NSDictionary *d = self.summaries[indexPath.row];
-    if (self.onSelect) self.onSelect(d[@"id"]);
+    if (self.onSelect) self.onSelect([d objectForKey:@"id"]);
 }
 
 - (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath
@@ -132,7 +132,7 @@
 {
     if (editingStyle != UITableViewCellEditingStyleDelete) return;
     NSDictionary *d = self.summaries[indexPath.row];
-    [[ORStore shared] deleteConversation:d[@"id"]];
+    [[ORStore shared] deleteConversation:[d objectForKey:@"id"]];
     self.summaries = [[ORStore shared] conversationSummaries];
     [tableView deleteRowsAtIndexPaths:@[ indexPath ] withRowAnimation:UITableViewRowAnimationFade];
     if (self.summaries.count == 0) [self reload];

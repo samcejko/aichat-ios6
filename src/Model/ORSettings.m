@@ -138,7 +138,7 @@ static NSString * const kFallbackKey     = @"apiKey.fallback";
 #pragma mark - Simple properties
 
 - (NSString *)providerID {return [DEF stringForKey:@"providerID"] ?: @"openrouter";}
-- (NSDictionary *)profileForProvider:(NSString *)identifier {NSDictionary *profiles=[DEF dictionaryForKey:@"providerProfiles"];NSDictionary *p=profiles[identifier];if(![p isKindOfClass:[NSDictionary class]])p=[ORProvider preset:identifier];NSMutableDictionary *result=[p mutableCopy];NSString *base=p[@"baseURL"] ?: @"",*protocol=p[@"protocol"] ?: @"openai";BOOL legacy=[identifier isEqual:@"openrouter"]&&[base isEqual:@"https://openrouter.ai/api/v1"]&&[protocol isEqual:@"openai"];NSString *identity=[ORProvider identityForID:identifier baseURL:base protocol:protocol];result[@"model"]=[DEF stringForKey:legacy?@"lastModelId":[@"lastModelId." stringByAppendingString:identity]] ?: @"";result[@"images"]=@([DEF boolForKey:legacy?@"modelAcceptsImages":[@"modelAcceptsImages." stringByAppendingString:identity]]);return result;}
+- (NSDictionary *)profileForProvider:(NSString *)identifier {NSDictionary *profiles=[DEF dictionaryForKey:@"providerProfiles"];NSDictionary *p=profiles[identifier];if(![p isKindOfClass:[NSDictionary class]])p=[ORProvider preset:identifier];NSMutableDictionary *result=[p mutableCopy];NSString *base=[p objectForKey:@"baseURL"] ?: @"",*protocol=[p objectForKey:@"protocol"] ?: @"openai";BOOL legacy=[identifier isEqual:@"openrouter"]&&[base isEqual:@"https://openrouter.ai/api/v1"]&&[protocol isEqual:@"openai"];NSString *identity=[ORProvider identityForID:identifier baseURL:base protocol:protocol];result[@"model"]=[DEF stringForKey:legacy?@"lastModelId":[@"lastModelId." stringByAppendingString:identity]] ?: @"";result[@"images"]=@([DEF boolForKey:legacy?@"modelAcceptsImages":[@"modelAcceptsImages." stringByAppendingString:identity]]);return result;}
 - (NSString *)apiBaseURL {return [[self profileForProvider:self.providerID] objectForKey:@"baseURL"] ?: @"";}
 - (NSString *)apiProtocol {return [[self profileForProvider:self.providerID] objectForKey:@"protocol"] ?: @"openai";}
 - (NSString *)providerIdentity {return [ORProvider identityForID:self.providerID baseURL:self.apiBaseURL protocol:self.apiProtocol];}
@@ -285,24 +285,24 @@ static NSString * const kFallbackKey     = @"apiKey.fallback";
 {
     NSString *pid = self.activePersonaId;
     for (NSDictionary *p in self.personas) {
-        if ([p[@"id"] isEqualToString:pid]) return p;
+        if ([[p objectForKey:@"id"] isEqualToString:pid]) return p;
     }
     return nil;
 }
 
 - (NSString *)activeSystemPrompt
 {
-    NSString *prompt = [[self activePersona][@"prompt"] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSString *prompt = [[[self activePersona] objectForKey:@"prompt"] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     return prompt.length ? prompt : nil;
 }
 
 - (void)addOrUpdatePersona:(NSDictionary *)persona
 {
-    if (!persona[@"id"]) return;
+    if (![persona objectForKey:@"id"]) return;
     NSMutableArray *list = [self.personas mutableCopy];
     NSUInteger idx = NSNotFound;
     for (NSUInteger i = 0; i < list.count; i++) {
-        if ([list[i][@"id"] isEqualToString:persona[@"id"]]) { idx = i; break; }
+        if ([[list[i] objectForKey:@"id"] isEqualToString:[persona objectForKey:@"id"]]) { idx = i; break; }
     }
     if (idx == NSNotFound) [list addObject:persona];
     else list[idx] = persona;
@@ -313,7 +313,7 @@ static NSString * const kFallbackKey     = @"apiKey.fallback";
 {
     if (!personaId || [personaId isEqualToString:@"none"]) return;
     NSMutableArray *list = [NSMutableArray array];
-    for (NSDictionary *p in self.personas) if (![p[@"id"] isEqualToString:personaId]) [list addObject:p];
+    for (NSDictionary *p in self.personas) if (![[p objectForKey:@"id"] isEqualToString:personaId]) [list addObject:p];
     if ([self.activePersonaId isEqualToString:personaId]) self.activePersonaId = @"none";
     [self setPersonas:list];
 }

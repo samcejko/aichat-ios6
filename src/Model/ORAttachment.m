@@ -83,14 +83,14 @@
 {
     if (![json isKindOfClass:[NSDictionary class]]) return nil;
     ORAttachment *a = [[ORAttachment alloc] init];
-    a.attachmentId = json[@"id"] ?: [ORUtils uuid];
-    a.storedName = json[@"file"];
-    a.displayName = json[@"name"] ?: a.storedName;
-    a.mime = json[@"mime"] ?: @"application/octet-stream";
-    a.kind = (ORAttachmentKind)[json[@"kind"] integerValue];
-    a.size = [json[@"size"] unsignedLongLongValue];
-    a.pixelWidth = [json[@"w"] integerValue];
-    a.pixelHeight = [json[@"h"] integerValue];
+    a.attachmentId = [json objectForKey:@"id"] ?: [ORUtils uuid];
+    a.storedName = [json objectForKey:@"file"];
+    a.displayName = [json objectForKey:@"name"] ?: a.storedName;
+    a.mime = [json objectForKey:@"mime"] ?: @"application/octet-stream";
+    a.kind = (ORAttachmentKind)[[json objectForKey:@"kind"] integerValue];
+    a.size = [[json objectForKey:@"size"] unsignedLongLongValue];
+    a.pixelWidth = [[json objectForKey:@"w"] integerValue];
+    a.pixelHeight = [[json objectForKey:@"h"] integerValue];
     if (![a.storedName isKindOfClass:[NSString class]] || a.storedName.length == 0) return nil;
     return a;
 }

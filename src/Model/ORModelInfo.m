@@ -28,31 +28,31 @@ static NSArray *ORStringArray(id v)
 + (instancetype)modelWithJSON:(NSDictionary *)json
 {
     if (![json isKindOfClass:[NSDictionary class]]) return nil;
-    NSString *mid = ORStr(json[@"id"]);
+    NSString *mid = ORStr([json objectForKey:@"id"]);
     if (mid.length == 0) return nil;
     ORModelInfo *m = [[ORModelInfo alloc] init];
     m.modelId = mid;
-    m.name = ORStr(json[@"name"]) ?: mid;
-    m.modelDescription = ORStr(json[@"description"]) ?: @"";
-    m.contextLength = ORInt(json[@"context_length"]);
-    m.created = [ORStr(json[@"created"]) doubleValue];
+    m.name = ORStr([json objectForKey:@"name"]) ?: mid;
+    m.modelDescription = ORStr([json objectForKey:@"description"]) ?: @"";
+    m.contextLength = ORInt([json objectForKey:@"context_length"]);
+    m.created = [ORStr([json objectForKey:@"created"]) doubleValue];
 
-    NSDictionary *pricing = [json[@"pricing"] isKindOfClass:[NSDictionary class]] ? json[@"pricing"] : @{};
+    NSDictionary *pricing = [[json objectForKey:@"pricing"] isKindOfClass:[NSDictionary class]] ? [json objectForKey:@"pricing"] : @{};
     NSString *(^price)(id) = ^NSString *(id v) {
         NSString *s = ORStr(v);
         return s.length ? s : nil;
     };
-    m.promptPrice = price(pricing[@"prompt"]);
-    m.completionPrice = price(pricing[@"completion"]);
-    m.imagePrice = price(pricing[@"image"]);
-    m.requestPrice = price(pricing[@"request"]);
+    m.promptPrice = price([pricing objectForKey:@"prompt"]);
+    m.completionPrice = price([pricing objectForKey:@"completion"]);
+    m.imagePrice = price([pricing objectForKey:@"image"]);
+    m.requestPrice = price([pricing objectForKey:@"request"]);
 
-    NSDictionary *arch = [json[@"architecture"] isKindOfClass:[NSDictionary class]] ? json[@"architecture"] : @{};
-    m.inputModalities = ORStringArray(arch[@"input_modalities"]);
-    m.outputModalities = ORStringArray(arch[@"output_modalities"]);
+    NSDictionary *arch = [[json objectForKey:@"architecture"] isKindOfClass:[NSDictionary class]] ? [json objectForKey:@"architecture"] : @{};
+    m.inputModalities = ORStringArray([arch objectForKey:@"input_modalities"]);
+    m.outputModalities = ORStringArray([arch objectForKey:@"output_modalities"]);
     if (m.inputModalities.count == 0) {
         // Older shape: "modality": "text+image->text"
-        NSString *modality = ORStr(arch[@"modality"]) ?: @"text->text";
+        NSString *modality = ORStr([arch objectForKey:@"modality"]) ?: @"text->text";
         NSRange arrow = [modality rangeOfString:@"->"];
         NSString *in = arrow.location != NSNotFound ? [modality substringToIndex:arrow.location] : modality;
         NSString *out = arrow.location != NSNotFound ? [modality substringFromIndex:arrow.location + 2] : @"text";
@@ -60,11 +60,11 @@ static NSArray *ORStringArray(id v)
         m.outputModalities = [out componentsSeparatedByString:@"+"];
     }
 
-    NSDictionary *top = [json[@"top_provider"] isKindOfClass:[NSDictionary class]] ? json[@"top_provider"] : @{};
-    m.maxCompletionTokens = ORInt(top[@"max_completion_tokens"]);
-    if (m.contextLength == 0) m.contextLength = ORInt(top[@"context_length"]);
+    NSDictionary *top = [[json objectForKey:@"top_provider"] isKindOfClass:[NSDictionary class]] ? [json objectForKey:@"top_provider"] : @{};
+    m.maxCompletionTokens = ORInt([top objectForKey:@"max_completion_tokens"]);
+    if (m.contextLength == 0) m.contextLength = ORInt([top objectForKey:@"context_length"]);
 
-    m.supportedParameters = ORStringArray(json[@"supported_parameters"]);
+    m.supportedParameters = ORStringArray([json objectForKey:@"supported_parameters"]);
     return m;
 }
 

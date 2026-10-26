@@ -50,16 +50,16 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
     NSString *message = nil;
     NSInteger code = status;
     if ([json isKindOfClass:[NSDictionary class]]) {
-        id err = json[@"error"];
+        id err = [json objectForKey:@"error"];
         if ([err isKindOfClass:[NSDictionary class]]) {
-            id msg = err[@"message"];
+            id msg = [err objectForKey:@"message"];
             if ([msg isKindOfClass:[NSString class]]) message = msg;
-            id c = err[@"code"];
+            id c = [err objectForKey:@"code"];
             if ([c isKindOfClass:[NSNumber class]]) code = [c integerValue];
             else if ([c isKindOfClass:[NSString class]] && [c integerValue] > 0) code = [c integerValue];
-            id meta = err[@"metadata"];
+            id meta = [err objectForKey:@"metadata"];
             if ([meta isKindOfClass:[NSDictionary class]]) {
-                id raw = meta[@"raw"];
+                id raw = [meta objectForKey:@"raw"];
                 if ([raw isKindOfClass:[NSString class]] && [raw length] && [raw length] < 300 && ![message isEqualToString:raw]) {
                     message = message ? [NSString stringWithFormat:@"%@ (%@)", message, raw] : raw;
                 }
@@ -84,7 +84,7 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
         if (error) { completion(nil, error); return; }
         id json = [ORUtils JSONObjectFromData:body];
         if (status != 200) { completion(nil, [OROpenRouterClient errorFromResponseJSON:json status:status]); return; }
-        NSArray *data = [json isKindOfClass:[NSDictionary class]] ? json[@"data"] : nil;
+        NSArray *data = [json isKindOfClass:[NSDictionary class]] ? [json objectForKey:@"data"] : nil;
         if (![data isKindOfClass:[NSArray class]]) {
             completion(nil, ORMakeError(ORErrorBadResponse, L(@"Unexpected model list format.")));
             return;
@@ -107,7 +107,7 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
         id json = [ORUtils JSONObjectFromData:body];
         if (status != 200) { completion(nil, [OROpenRouterClient errorFromResponseJSON:json status:status]); return; }
         if(!router){completion(@{@"label":L(@"Provider connected")},nil);return;}
-        NSDictionary *data = [json isKindOfClass:[NSDictionary class]] ? json[@"data"] : nil;
+        NSDictionary *data = [json isKindOfClass:[NSDictionary class]] ? [json objectForKey:@"data"] : nil;
         if (![data isKindOfClass:[NSDictionary class]]) {
             completion(nil, ORMakeError(ORErrorBadResponse, L(@"Unexpected response format.")));
             return;
@@ -129,7 +129,7 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
     return [self chatCompletionWithBody:body stream:stream profile:[ORProvider current] key:[ORSettings shared].apiKey onDelta:onDelta completion:completion];
 }
 - (ORHTTPRequest *)chatCompletionWithBody:(NSDictionary *)body stream:(BOOL)stream profile:(NSDictionary *)profile key:(NSString *)key onDelta:(void (^)(NSDictionary *))onDelta completion:(ORJSONCompletion)completion {
-    NSError *baseError=nil;if(![ORProvider normalizeBaseURL:profile[@"baseURL"] error:&baseError]){completion(nil,baseError);return nil;}
+    NSError *baseError=nil;if(![ORProvider normalizeBaseURL:[profile objectForKey:@"baseURL"] error:&baseError]){completion(nil,baseError);return nil;}
     NSMutableDictionary *payload = [[ORProvider adaptBody:body profile:profile] mutableCopy];
     payload[@"stream"] = @(stream);
     NSData *json = [ORUtils JSONDataFromObject:payload];
@@ -138,7 +138,7 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
         return nil;
     }
 
-    ORHTTPRequest *req = [ORProvider request:@"POST" suffix:[profile[@"protocol"] isEqual:@"anthropic"]?@"/messages":[profile[@"protocol"] isEqual:@"responses"]?@"/responses":@"/chat/completions" profile:profile key:key];
+    ORHTTPRequest *req = [ORProvider request:@"POST" suffix:[[profile objectForKey:@"protocol"] isEqual:@"anthropic"]?@"/messages":[[profile objectForKey:@"protocol"] isEqual:@"responses"]?@"/responses":@"/chat/completions" profile:profile key:key];
     NSMutableDictionary *headers=[req.headers mutableCopy];headers[@"Accept"]=stream?@"text/event-stream":@"application/json";req.headers=headers;
     req.body = json;
     req.readTimeout = 180;
@@ -148,7 +148,7 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
         req.onComplete = ^(NSInteger status, NSData *data, NSError *error) {
             if (error) { completion(nil, error); return; }
             id resp = [ORUtils JSONObjectFromData:data];
-            if (status != 200 || ![resp isKindOfClass:[NSDictionary class]] || resp[@"error"]) {
+            if (status != 200 || ![resp isKindOfClass:[NSDictionary class]] || [resp objectForKey:@"error"]) {
                 completion(nil, [OROpenRouterClient errorFromResponseJSON:resp status:status]);
                 return;
             }
@@ -174,12 +174,12 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
         id chunk = [ORUtils JSONObjectFromData:[trimmed dataUsingEncoding:NSUTF8StringEncoding]];
         if (![chunk isKindOfClass:[NSDictionary class]]) return;
         chunk=[ORProvider adaptEvent:chunk profile:profile];
-        if (chunk[@"error"]) {
+        if ([chunk objectForKey:@"error"]) {
             streamError = [OROpenRouterClient errorFromResponseJSON:chunk status:200];
             done = YES;
             return;
         }
-        if ([chunk[@"usage"] isKindOfClass:[NSDictionary class]]) { [combinedUsage addEntriesFromDictionary:chunk[@"usage"]];lastChunkWithUsage=@{@"usage":[combinedUsage copy]}; }
+        if ([[chunk objectForKey:@"usage"] isKindOfClass:[NSDictionary class]]) { [combinedUsage addEntriesFromDictionary:[chunk objectForKey:@"usage"]];lastChunkWithUsage=@{@"usage":[combinedUsage copy]}; }
         if (onDelta) onDelta(chunk);
     };
     req.onHeaders = ^(NSInteger status, NSDictionary *headers) {
@@ -196,7 +196,7 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
             completion(nil, [OROpenRouterClient errorFromResponseJSON:resp status:status]);
             return;
         }
-        if(jsonResponse){id resp=[ORUtils JSONObjectFromData:errorBody];if(![resp isKindOfClass:[NSDictionary class]]||resp[@"error"]){completion(nil,[OROpenRouterClient errorFromResponseJSON:resp status:status]);return;}NSDictionary *normalized=[ORProvider adaptResponse:resp profile:profile];NSArray *choices=normalized[@"choices"];if(![choices isKindOfClass:[NSArray class]]||!choices.count){completion(nil,ORMakeError(ORErrorBadResponse,L(@"Unexpected response format.")));return;}NSDictionary *choice=choices[0];if(onDelta)onDelta(@{@"choices":@[@{@"delta":choice[@"message"] ?: @{},@"finish_reason":choice[@"finish_reason"] ?: @"stop"}]});completion(normalized,nil);return;}
+        if(jsonResponse){id resp=[ORUtils JSONObjectFromData:errorBody];if(![resp isKindOfClass:[NSDictionary class]]||[resp objectForKey:@"error"]){completion(nil,[OROpenRouterClient errorFromResponseJSON:resp status:status]);return;}NSDictionary *normalized=[ORProvider adaptResponse:resp profile:profile];NSArray *choices=[normalized objectForKey:@"choices"];if(![choices isKindOfClass:[NSArray class]]||!choices.count){completion(nil,ORMakeError(ORErrorBadResponse,L(@"Unexpected response format.")));return;}NSDictionary *choice=choices[0];if(onDelta)onDelta(@{@"choices":@[@{@"delta":[choice objectForKey:@"message"] ?: @{},@"finish_reason":[choice objectForKey:@"finish_reason"] ?: @"stop"}]});completion(normalized,nil);return;}
         [sse finish];
         if (streamError) { completion(nil, streamError); return; }
         completion(lastChunkWithUsage, nil);

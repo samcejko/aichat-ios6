@@ -369,15 +369,15 @@ static const char kBase64Table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr
 + (NSString *)appVersion
 {
     NSDictionary *info = [[NSBundle mainBundle] infoDictionary];
-    NSString *v = info[@"CFBundleShortVersionString"] ?: @"0";
-    NSString *b = info[@"CFBundleVersion"] ?: @"0";
+    NSString *v = [info objectForKey:@"CFBundleShortVersionString"] ?: @"0";
+    NSString *b = [info objectForKey:@"CFBundleVersion"] ?: @"0";
     return [NSString stringWithFormat:@"%@ (%@)", v, b];
 }
 
 + (NSString *)userAgent
 {
     UIDevice *d = [UIDevice currentDevice];
-    NSString *v = [[NSBundle mainBundle] infoDictionary][@"CFBundleShortVersionString"] ?: @"0";
+    NSString *v = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"] ?: @"0";
     return [NSString stringWithFormat:@"AIChat/%@ (%@; iOS %@)", v, d.model, d.systemVersion];
 }
 

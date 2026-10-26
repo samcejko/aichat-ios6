@@ -252,9 +252,9 @@ typedef NS_ENUM(NSInteger, ORChunkState) {
     }
     self.statusCode = status;
     self.responseHeaders = headers;
-    NSString *te = [headers[@"transfer-encoding"] lowercaseString];
+    NSString *te = [[headers objectForKey:@"transfer-encoding"] lowercaseString];
     self.chunked = te && [te rangeOfString:@"chunked"].location != NSNotFound;
-    NSString *cl = headers[@"content-length"];
+    NSString *cl = [headers objectForKey:@"content-length"];
     self.contentLength = (cl && !self.chunked) ? [cl longLongValue] : -1;
     return YES;
 }

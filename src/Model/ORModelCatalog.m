@@ -73,10 +73,10 @@ static const NSTimeInterval kStaleInterval = 12 * 60 * 60;
     NSData *data = [NSData dataWithContentsOfFile:[self cacheFile]];
     id json = [ORUtils JSONObjectFromData:data];
     if ([json isKindOfClass:[NSDictionary class]]) {
-        NSArray *arr = json[@"data"];
+        NSArray *arr = [json objectForKey:@"data"];
         if ([arr isKindOfClass:[NSArray class]]) {
             [self setModelsFromJSONArray:arr];
-            NSNumber *ts = json[@"updated"];
+            NSNumber *ts = [json objectForKey:@"updated"];
             if ([ts isKindOfClass:[NSNumber class]]) self.lastUpdated = [NSDate dateWithTimeIntervalSince1970:[ts doubleValue]];
             ORLog(@"Loaded %lu models from cache", (unsigned long)self.models.count);
         }

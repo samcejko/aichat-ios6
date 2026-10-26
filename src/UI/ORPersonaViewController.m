@@ -87,11 +87,11 @@
         cell.detailTextLabel.font = [UIFont systemFontOfSize:12];
     }
     NSDictionary *p = self.personas[indexPath.row];
-    cell.textLabel.text = p[@"name"];
-    NSString *prompt = p[@"prompt"];
+    cell.textLabel.text = [p objectForKey:@"name"];
+    NSString *prompt = [p objectForKey:@"prompt"];
     cell.detailTextLabel.text = prompt.length ? [ORUtils truncate:prompt to:70] : L(@"No system prompt");
-    BOOL active = [p[@"id"] isEqualToString:[ORSettings shared].activePersonaId];
-    cell.accessoryType = [p[@"id"] isEqualToString:@"none"] ? UITableViewCellAccessoryNone : UITableViewCellAccessoryDetailDisclosureButton;
+    BOOL active = [[p objectForKey:@"id"] isEqualToString:[ORSettings shared].activePersonaId];
+    cell.accessoryType = [[p objectForKey:@"id"] isEqualToString:@"none"] ? UITableViewCellAccessoryNone : UITableViewCellAccessoryDetailDisclosureButton;
     [[ORTheme shared] styleCell:cell];
     cell.detailTextLabel.textColor = [[ORTheme shared] secondaryTextColor];
     cell.textLabel.textColor = active ? [[ORTheme shared] accentColor] : [[ORTheme shared] primaryTextColor];
@@ -108,7 +108,7 @@
 {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     NSDictionary *p = self.personas[indexPath.row];
-    [ORSettings shared].activePersonaId = p[@"id"];
+    [ORSettings shared].activePersonaId = [p objectForKey:@"id"];
     [[ORSettings shared] save];
     [self.tableView reloadData];
 }
@@ -120,14 +120,14 @@
 
 - (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    return ![self.personas[indexPath.row][@"id"] isEqualToString:@"none"];
+    return ![[self.personas[indexPath.row] objectForKey:@"id"] isEqualToString:@"none"];
 }
 
 - (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath
 {
     if (editingStyle != UITableViewCellEditingStyleDelete) return;
     NSDictionary *p = self.personas[indexPath.row];
-    [[ORSettings shared] removePersonaWithId:p[@"id"]];
+    [[ORSettings shared] removePersonaWithId:[p objectForKey:@"id"]];
     self.personas = [ORSettings shared].personas;
     [tableView deleteRowsAtIndexPaths:@[ indexPath ] withRowAnimation:UITableViewRowAnimationFade];
     [tableView reloadData];
@@ -161,7 +161,7 @@
 
     self.nameField = [[UITextField alloc] initWithFrame:CGRectZero];
     self.nameField.borderStyle = UITextBorderStyleRoundedRect;
-    self.nameField.text = self.persona[@"name"] ?: @"";
+    self.nameField.text = [self.persona objectForKey:@"name"] ?: @"";
     self.nameField.placeholder = L(@"e.g. Translator");
     self.nameField.clearButtonMode = UITextFieldViewModeWhileEditing;
     [self.view addSubview:self.nameField];
@@ -174,7 +174,7 @@
 
     self.promptView = [[UITextView alloc] initWithFrame:CGRectZero];
     self.promptView.font = [UIFont systemFontOfSize:15];
-    self.promptView.text = self.persona[@"prompt"] ?: @"";
+    self.promptView.text = [self.persona objectForKey:@"prompt"] ?: @"";
     self.promptView.layer.cornerRadius = 6;
     self.promptView.layer.borderWidth = 1;
     [self.view addSubview:self.promptView];
@@ -237,7 +237,7 @@
         [ORUtils alertWithTitle:L(@"Name required") message:L(@"Give the persona a short name.")];
         return;
     }
-    NSString *pid = self.persona[@"id"] ?: [ORUtils uuid];
+    NSString *pid = [self.persona objectForKey:@"id"] ?: [ORUtils uuid];
     NSDictionary *result = @{ @"id": pid, @"name": name, @"prompt": self.promptView.text ?: @"" };
     if (self.completion) self.completion(result);
 }
