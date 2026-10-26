@@ -2,6 +2,7 @@
 #import "ORModelDetailViewController.h"
 #import "ORModelCatalog.h"
 #import "ORSettings.h"
+#import "ORProvider.h"
 #import "ORTheme.h"
 #import "ORUtils.h"
 #import "ORModern.h"
@@ -59,7 +60,8 @@
     [self.headerView addSubview:self.searchBar];
 
     self.freeSwitch = [[UISwitch alloc] initWithFrame:CGRectZero];
-    self.freeSwitch.on = s.pickerFreeOnly;
+    self.freeSwitch.on = [ORProvider isOpenRouter] && s.pickerFreeOnly;
+    self.freeSwitch.enabled=[ORProvider isOpenRouter];
     [self.freeSwitch addTarget:self action:@selector(filtersChanged) forControlEvents:UIControlEventValueChanged];
     self.freeLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     self.freeLabel.text = L(@"Free only");

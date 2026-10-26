@@ -91,6 +91,27 @@
     "keyRequired": true
   },
   {
+    "id": "cerebras",
+    "name": "Cerebras",
+    "baseURL": "https://api.cerebras.ai/v1",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "nvidia",
+    "name": "NVIDIA NIM",
+    "baseURL": "https://integrate.api.nvidia.com/v1",
+    "protocol": "openai",
+    "keyRequired": true
+  },
+  {
+    "id": "perplexity",
+    "name": "Perplexity",
+    "baseURL": "https://api.perplexity.ai/v1",
+    "protocol": "responses",
+    "keyRequired": true
+  },
+  {
     "id": "ollama-cloud",
     "name": "Ollama Cloud",
     "baseURL": "https://ollama.com/v1",
@@ -151,6 +172,13 @@
     "name": "Custom / Anthropic-compatible",
     "baseURL": "",
     "protocol": "anthropic",
+    "keyRequired": false
+  },
+  {
+    "id": "custom-responses",
+    "name": "Custom / Responses API",
+    "baseURL": "",
+    "protocol": "responses",
     "keyRequired": false
   }
 ]

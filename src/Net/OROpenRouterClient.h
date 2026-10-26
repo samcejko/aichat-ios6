@@ -18,6 +18,8 @@ typedef void (^ORJSONCompletion)(NSDictionary *json, NSError *error);
                                   onDelta:(void (^)(NSDictionary *chunk))onDelta
                                completion:(void (^)(NSDictionary *finalJSON, NSError *error))completion;
 
+// Explicit immutable profile, also used by the on-device transport regression tests.
+- (ORHTTPRequest *)chatCompletionWithBody:(NSDictionary *)body stream:(BOOL)stream profile:(NSDictionary *)profile key:(NSString *)key onDelta:(void (^)(NSDictionary *chunk))onDelta completion:(ORJSONCompletion)completion;
 + (NSError *)errorFromResponseJSON:(id)json status:(NSInteger)status;
 + (NSString *)hintForHTTPStatus:(NSInteger)status;
 

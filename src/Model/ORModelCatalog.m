@@ -136,7 +136,7 @@ static const NSTimeInterval kStaleInterval = 12 * 60 * 60;
 - (ORModelInfo *)modelWithId:(NSString *)modelId
 {
     if (!modelId) return nil;
-    ORModelInfo *m=self.byId[modelId];if(m)return m;
+    ORModelInfo *m=self.byId[modelId];if(m){if(![ORProvider isOpenRouter]&&[modelId isEqual:[ORSettings shared].lastModelId]&&[ORSettings shared].modelAcceptsImages){NSMutableDictionary *json=[[m toJSON] mutableCopy];json[@"architecture"]=@{@"input_modalities":@[@"text",@"image"],@"output_modalities":@[@"text"]};return [ORModelInfo modelWithJSON:json];}return m;}
     if([modelId isEqual:[ORSettings shared].lastModelId])return [ORModelInfo modelWithJSON:@{@"id":modelId,@"architecture":@{@"input_modalities":[ORSettings shared].modelAcceptsImages?@[@"text",@"image"]:@[@"text"],@"output_modalities":@[@"text"]}}];return nil;
 }
 

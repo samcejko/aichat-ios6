@@ -125,12 +125,10 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
                                   onDelta:(void (^)(NSDictionary *))onDelta
                                completion:(void (^)(NSDictionary *, NSError *))completion
 {
-    NSString *key = [ORSettings shared].apiKey;
-    if (![ORSettings shared].hasAPIKey) {
-        completion(nil, ORMakeError(ORErrorNoAPIKey, L(@"No API key set.")));
-        return nil;
-    }
-    NSDictionary *profile=[ORProvider current];
+    if(![ORSettings shared].hasAPIKey){completion(nil,ORMakeError(ORErrorNoAPIKey,L(@"No API key set.")));return nil;}
+    return [self chatCompletionWithBody:body stream:stream profile:[ORProvider current] key:[ORSettings shared].apiKey onDelta:onDelta completion:completion];
+}
+- (ORHTTPRequest *)chatCompletionWithBody:(NSDictionary *)body stream:(BOOL)stream profile:(NSDictionary *)profile key:(NSString *)key onDelta:(void (^)(NSDictionary *))onDelta completion:(ORJSONCompletion)completion {
     NSError *baseError=nil;if(![ORProvider normalizeBaseURL:profile[@"baseURL"] error:&baseError]){completion(nil,baseError);return nil;}
     NSMutableDictionary *payload = [[ORProvider adaptBody:body profile:profile] mutableCopy];
     payload[@"stream"] = @(stream);
@@ -140,7 +138,7 @@ static NSString * const kAppTitle = @"AI Chat for iOS 6";
         return nil;
     }
 
-    ORHTTPRequest *req = [ORProvider request:@"POST" suffix:[profile[@"protocol"] isEqual:@"anthropic"]?@"/messages":@"/chat/completions" profile:profile key:key];
+    ORHTTPRequest *req = [ORProvider request:@"POST" suffix:[profile[@"protocol"] isEqual:@"anthropic"]?@"/messages":[profile[@"protocol"] isEqual:@"responses"]?@"/responses":@"/chat/completions" profile:profile key:key];
     NSMutableDictionary *headers=[req.headers mutableCopy];headers[@"Accept"]=stream?@"text/event-stream":@"application/json";req.headers=headers;
     req.body = json;
     req.readTimeout = 180;

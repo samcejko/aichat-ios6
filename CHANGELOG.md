@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 (2026-10-26)
+
+- #64: 26 provider/local-server presets, editable endpoints and manual model IDs.
+- OpenAI Chat Completions, Responses API, Anthropic Messages streaming and Azure v1 authentication.
+- Provider-scoped credentials, model choices and caches; original OpenRouter data preserved.
+- Conversation/provider checks and cancellation prevent a provider change from sending history to another service.
+- OpenRouter-only plugins are omitted for other APIs. Local HTTP/custom ports, optional local keys, CZ/EN setup and iOS 6 styling.
+
+
 ## 0.3.1 (2026-10-14)
 
 - Links in the replies: hold a message and choose "Open Link". On iOS 6 the link opens in Safari or Surfari (your

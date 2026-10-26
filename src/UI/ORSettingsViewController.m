@@ -321,7 +321,7 @@ typedef NS_ENUM(NSInteger, ORSection) {
                 cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
             } else if (row == 6) {
                 cell.textLabel.text = L(@"Web search");
-                cell.accessoryView = [self switchOn:s.webSearch tag:tag];
+                cell.accessoryView = [self switchOn:[ORProvider isOpenRouter]&&s.webSearch tag:tag];((UISwitch *)cell.accessoryView).enabled=[ORProvider isOpenRouter];
                 cell.selectionStyle = UITableViewCellSelectionStyleNone;
             } else if (row == 7) {
                 cell.textLabel.text = L(@"Reasoning effort");
@@ -351,7 +351,7 @@ typedef NS_ENUM(NSInteger, ORSection) {
                 cell.selectionStyle = UITableViewCellSelectionStyleNone;
             } else {
                 cell.textLabel.text = L(@"Context compression");
-                cell.accessoryView = [self switchOn:s.middleOut tag:tag];
+                cell.accessoryView = [self switchOn:[ORProvider isOpenRouter]&&s.middleOut tag:tag];((UISwitch *)cell.accessoryView).enabled=[ORProvider isOpenRouter];
                 cell.selectionStyle = UITableViewCellSelectionStyleNone;
             }
             break;

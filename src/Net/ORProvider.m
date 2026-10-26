@@ -5,6 +5,8 @@
 #import "ORCommon.h"
 #import <CommonCrypto/CommonDigest.h>
 NSString * const ORProviderDidChangeNotification = @"ORProviderDidChangeNotification";
+static NSDictionary *ORPDict(id v){return [v isKindOfClass:[NSDictionary class]]?v:@{};}
+static NSArray *ORPArray(id v){return [v isKindOfClass:[NSArray class]]?v:@[];}
 @implementation ORProvider
 + (NSArray *)presets { static NSArray *rows;static dispatch_once_t once;dispatch_once(&once,^{id value=[ORUtils JSONObjectFromData:[NSData dataWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"Providers" ofType:@"json"]]];rows=[value isKindOfClass:[NSArray class]]?value:@[];});return rows; }
 + (NSDictionary *)preset:(NSString *)identifier {for(NSDictionary *p in [self presets])if([p[@"id"] isEqual:identifier])return p;return [self presets].count?[self presets][0]:@{};}
@@ -14,11 +16,11 @@ NSString * const ORProviderDidChangeNotification = @"ORProviderDidChangeNotifica
     BOOL valid=([scheme isEqual:@"https"]||[scheme isEqual:@"http"])&&u.host.length&&!u.user.length&&!u.password.length&&!u.query.length&&!u.fragment.length&&[s rangeOfCharacterFromSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].location==NSNotFound;
     if(!valid){if(error)*error=ORMakeError(ORErrorBadResponse,L(@"Enter an HTTP or HTTPS API base URL without a query, password or fragment."));return nil;}
     while([s hasSuffix:@"/"])s=[s substringToIndex:s.length-1];
-    for(NSString *ending in @[@"/chat/completions",@"/messages",@"/models"])if([s hasSuffix:ending]){s=[s substringToIndex:s.length-ending.length];break;}
+    for(NSString *ending in @[@"/chat/completions",@"/messages",@"/models",@"/responses"])if([s hasSuffix:ending]){s=[s substringToIndex:s.length-ending.length];break;}
     // Canonicalize the authority so harmless case changes do not select another credential slot.
     NSURL *canonical=[NSURL URLWithString:s];NSString *host=[canonical.host lowercaseString];if([host rangeOfString:@":"].location!=NSNotFound)host=[NSString stringWithFormat:@"[%@]",host];
     NSInteger port=canonical.port.integerValue;NSString *authority=port&&port!=([scheme isEqual:@"https"]?443:80)?[NSString stringWithFormat:@"%@:%ld",host,(long)port]:host;
-    NSString *path=[canonical path] ?: @"";while([path hasSuffix:@"/"])path=[path substringToIndex:path.length-1];
+    NSString *path=CFBridgingRelease(CFURLCopyPath((__bridge CFURLRef)canonical)) ?: @"";while([path hasSuffix:@"/"])path=[path substringToIndex:path.length-1];
     return [NSString stringWithFormat:@"%@://%@%@",scheme,authority,path];
 }
 + (NSString *)identityForID:(NSString *)identifier baseURL:(NSString *)base protocol:(NSString *)protocol {
@@ -27,7 +29,7 @@ NSString * const ORProviderDidChangeNotification = @"ORProviderDidChangeNotifica
 + (NSDictionary *)current {ORSettings *s=[ORSettings shared];return @{@"id":s.providerID,@"baseURL":s.apiBaseURL,@"protocol":s.apiProtocol};}
 + (BOOL)isOpenRouter {ORSettings *s=[ORSettings shared];return [s.providerID isEqual:@"openrouter"]&&[s.apiBaseURL isEqual:@"https://openrouter.ai/api/v1"]&&[s.apiProtocol isEqual:@"openai"];}
 + (ORHTTPRequest *)request:(NSString *)method suffix:(NSString *)suffix profile:(NSDictionary *)profile key:(NSString *)key {
-    NSURL *u=[NSURL URLWithString:[profile[@"baseURL"] stringByAppendingString:suffix]];ORHTTPRequest *r=[ORHTTPRequest requestWithMethod:method host:u.host path:u.path.length?u.path:@"/"];r.secure=[[u.scheme lowercaseString] isEqual:@"https"];r.port=u.port?u.port.integerValue:(r.secure?443:80);
+    NSURL *u=[NSURL URLWithString:[profile[@"baseURL"] stringByAppendingString:suffix]];ORHTTPRequest *r=[ORHTTPRequest requestWithMethod:method host:u.host path:CFBridgingRelease(CFURLCopyPath((__bridge CFURLRef)u)) ?: @"/"];r.secure=[[u.scheme lowercaseString] isEqual:@"https"];r.port=u.port?u.port.integerValue:(r.secure?443:80);
     NSMutableDictionary *h=[NSMutableDictionary dictionaryWithObject:@"application/json" forKey:@"Accept"];
     NSString *protocol=profile[@"protocol"];
     if([protocol isEqual:@"anthropic"]){h[@"anthropic-version"]=@"2023-06-01";if(key.length)h[@"x-api-key"]=key;}
@@ -39,6 +41,14 @@ NSString * const ORProviderDidChangeNotification = @"ORProviderDidChangeNotifica
     NSMutableDictionary *b=[body mutableCopy];BOOL router=[profile[@"id"] isEqual:@"openrouter"]&&[profile[@"baseURL"] isEqual:@"https://openrouter.ai/api/v1"];
     if(router)return b;
     [b removeObjectForKey:@"plugins"];[b removeObjectForKey:@"transforms"];[b removeObjectForKey:@"route"];[b removeObjectForKey:@"provider"];[b removeObjectForKey:@"reasoning"];[b removeObjectForKey:@"modalities"];
+    if([profile[@"protocol"] isEqual:@"responses"]){
+        NSMutableArray *input=[NSMutableArray array],*systems=[NSMutableArray array];
+        for(NSDictionary *m in body[@"messages"]){id content=m[@"content"];NSString *role=m[@"role"];if([role isEqual:@"system"]){if([content isKindOfClass:[NSString class]])[systems addObject:content];continue;}
+            if([content isKindOfClass:[NSString class]])[input addObject:@{@"role":role,@"content":content}];
+            else {NSMutableArray *parts=[NSMutableArray array];for(NSDictionary *p in content){if([p[@"type"] isEqual:@"text"])[parts addObject:@{@"type":[role isEqual:@"assistant"]?@"output_text":@"input_text",@"text":p[@"text"] ?: @""}];else if([p[@"type"] isEqual:@"image_url"])[parts addObject:@{@"type":@"input_image",@"image_url":[p[@"image_url"] objectForKey:@"url"] ?: @""}];}if(parts.count)[input addObject:@{@"role":role,@"content":parts}];}
+        }
+        NSMutableDictionary *r=[NSMutableDictionary dictionaryWithDictionary:@{@"model":body[@"model"] ?: @"",@"input":input,@"store":@NO}];if(systems.count)r[@"instructions"]=[systems componentsJoinedByString:@"\n\n"];if(body[@"max_tokens"])r[@"max_output_tokens"]=body[@"max_tokens"];return r;
+    }
     if([profile[@"protocol"] isEqual:@"anthropic"]){
         NSMutableArray *messages=[NSMutableArray array],*systems=[NSMutableArray array];
         for(NSDictionary *m in body[@"messages"]){id content=m[@"content"];if([m[@"role"] isEqual:@"system"]){if([content isKindOfClass:[NSString class]])[systems addObject:content];continue;}
@@ -52,16 +62,26 @@ NSString * const ORProviderDidChangeNotification = @"ORProviderDidChangeNotifica
     return b;
 }
 + (NSDictionary *)adaptResponse:(NSDictionary *)json profile:(NSDictionary *)profile {
-    if(![profile[@"protocol"] isEqual:@"anthropic"])return json;NSMutableString *text=[NSMutableString string],*thinking=[NSMutableString string];for(NSDictionary *p in json[@"content"]){if([p[@"type"] isEqual:@"text"])[text appendString:p[@"text"] ?: @""];if([p[@"type"] isEqual:@"thinking"])[thinking appendString:p[@"thinking"] ?: @""];}
-    NSDictionary *usage=json[@"usage"];return @{@"choices":@[@{@"message":@{@"content":text,@"reasoning":thinking},@"finish_reason":[json[@"stop_reason"] isEqual:@"max_tokens"]?@"length":@"stop"}],@"usage":@{@"prompt_tokens":usage[@"input_tokens"] ?: @0,@"completion_tokens":usage[@"output_tokens"] ?: @0}};
+    if([profile[@"protocol"] isEqual:@"responses"]){
+        NSMutableString *text=[NSMutableString string];for(NSDictionary *item in ORPArray(json[@"output"]))if([item[@"type"] isEqual:@"message"])for(NSDictionary *part in ORPArray(item[@"content"])){if([part[@"type"] isEqual:@"output_text"])[text appendString:part[@"text"] ?: @""];else if([part[@"type"] isEqual:@"refusal"])[text appendString:part[@"refusal"] ?: @""];}
+        NSDictionary *usage=ORPDict(json[@"usage"]);return @{@"choices":@[@{@"message":@{@"content":text},@"finish_reason":[json[@"status"] isEqual:@"incomplete"]?@"length":@"stop"}],@"usage":@{@"prompt_tokens":usage[@"input_tokens"] ?: @0,@"completion_tokens":usage[@"output_tokens"] ?: @0}};
+    }
+    if(![profile[@"protocol"] isEqual:@"anthropic"])return json;NSMutableString *text=[NSMutableString string],*thinking=[NSMutableString string];for(NSDictionary *p in ORPArray(json[@"content"])){if([p[@"type"] isEqual:@"text"])[text appendString:p[@"text"] ?: @""];if([p[@"type"] isEqual:@"thinking"])[thinking appendString:p[@"thinking"] ?: @""];}
+    NSDictionary *usage=ORPDict(json[@"usage"]);return @{@"choices":@[@{@"message":@{@"content":text,@"reasoning":thinking},@"finish_reason":[json[@"stop_reason"] isEqual:@"max_tokens"]?@"length":@"stop"}],@"usage":@{@"prompt_tokens":usage[@"input_tokens"] ?: @0,@"completion_tokens":usage[@"output_tokens"] ?: @0}};
 }
 + (NSDictionary *)adaptEvent:(NSDictionary *)json profile:(NSDictionary *)profile {
+    if([profile[@"protocol"] isEqual:@"responses"]){NSString *type=json[@"type"];
+        if([type isEqual:@"response.output_text.delta"]||[type isEqual:@"response.refusal.delta"]||[type isEqual:@"response.reasoning_summary_text.delta"])return @{@"choices":@[@{@"delta":@{([type isEqual:@"response.reasoning_summary_text.delta"]?@"reasoning":@"content"):json[@"delta"] ?: @""}}]};
+        if([type isEqual:@"error"]||[type isEqual:@"response.failed"])return @{@"error":[ORPDict(json[@"response"]) objectForKey:@"error"] ?: json[@"error"] ?: @{@"message":json[@"message"] ?: @"Response failed"}};
+        if([type isEqual:@"response.completed"]||[type isEqual:@"response.incomplete"]){NSDictionary *r=[self adaptResponse:ORPDict(json[@"response"]) profile:profile];return @{@"choices":@[@{@"delta":@{},@"finish_reason":[type isEqual:@"response.incomplete"]?@"length":@"stop"}],@"usage":r[@"usage"] ?: @{}};}
+        return @{@"choices":@[]};
+    }
     if(![profile[@"protocol"] isEqual:@"anthropic"])return json;
-    NSString *type=json[@"type"];NSDictionary *d=json[@"delta"];
+    NSString *type=json[@"type"];NSDictionary *d=ORPDict(json[@"delta"]);
     if([type isEqual:@"error"])return @{@"error":json[@"error"] ?: @{}};
     if([type isEqual:@"content_block_delta"])return @{@"choices":@[@{@"delta":@{@"content":[d[@"type"] isEqual:@"text_delta"]?(d[@"text"] ?: @""):@"",@"reasoning":[d[@"type"] isEqual:@"thinking_delta"]?(d[@"thinking"] ?: @""):@""}}]};
-    if([type isEqual:@"message_delta"])return @{@"choices":@[@{@"delta":@{},@"finish_reason":[d[@"stop_reason"] isEqual:@"max_tokens"]?@"length":@"stop"}],@"usage":@{@"completion_tokens":[json[@"usage"] objectForKey:@"output_tokens"] ?: @0}};
-    if([type isEqual:@"message_start"])return @{@"choices":@[],@"usage":@{@"prompt_tokens":[[json[@"message"] objectForKey:@"usage"] objectForKey:@"input_tokens"] ?: @0}};
+    if([type isEqual:@"message_delta"])return @{@"choices":@[@{@"delta":@{},@"finish_reason":[d[@"stop_reason"] isEqual:@"max_tokens"]?@"length":@"stop"}],@"usage":@{@"completion_tokens":[ORPDict(json[@"usage"]) objectForKey:@"output_tokens"] ?: @0}};
+    if([type isEqual:@"message_start"])return @{@"choices":@[],@"usage":@{@"prompt_tokens":[ORPDict([ORPDict(json[@"message"]) objectForKey:@"usage"]) objectForKey:@"input_tokens"] ?: @0}};
     return @{@"choices":@[]};
 }
 @end

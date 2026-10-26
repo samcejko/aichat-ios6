@@ -1,10 +1,12 @@
 # AI Chat for iOS 6
 
-Universal (iPhone + iPad) OpenRouter chat client for **jailbroken iOS 6.x** devices (armv7, e.g. iPad 2),
+Universal (iPhone + iPad) multi-provider AI chat client for **jailbroken iOS 6.x** devices (armv7, e.g. iPad 2),
 with a second build for **64-bit devices with iOS 14–17** (iPhone X and newer: rootless jailbreaks and
 TrollStore) that keeps the glossy iOS 6 look.
-Bring your own [OpenRouter API key](https://openrouter.ai/keys) and chat with any of the models,
-including the free ones.
+Choose a provider and bring its API key, or connect a local model server. OpenRouter remains the default.
+Settings → Provider and API key offers 26 presets, an editable API base URL, a manual model ID and optional image input.
+Supported API formats: OpenAI Chat Completions, Responses API, Anthropic Messages and Azure OpenAI v1.
+See [provider setup and API sources](PROVIDERS.md).
 
 Why it is special: openrouter.ai only speaks TLS 1.2/1.3 with AEAD cipher suites, which the iOS 6
 networking stack cannot negotiate. The app therefore ships its own TLS stack (Mbed TLS) and a tiny
@@ -58,8 +60,10 @@ On iOS 14–17 (64-bit): with a rootless jailbreak add the same repository in Si
 
 ## Privacy
 
-Requests go straight from the device to `openrouter.ai`; there is no server in between and no
-analytics. The API key is stored on the device only: in the Keychain when it is available, otherwise
+Requests go straight from the device to the API address you configure; there is no developer relay and no
+analytics. Credentials and model caches are separated by provider, URL and API format. Existing OpenRouter
+credentials and history migrate without changes. Old conversations cannot be sent through a different provider
+until you explicitly switch back or start a new chat. HTTP endpoints send data unencrypted; use them on a trusted LAN. The API key is stored on the device only: in the Keychain when it is available, otherwise
 (typical for fake-signed installs) in the app's preferences file inside its sandbox, unencrypted.
 
 ## Building (GitHub Actions)

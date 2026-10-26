@@ -2,6 +2,8 @@
 #import "ORChatViewController.h"
 #import "ORExternalOpen.h"
 #import "ORChatEngine.h"
+#import "Tests/ORProviderTests.h"
+#import "ORAPIKeyViewController.h"
 #import "ORTheme.h"
 #import "ORTLSSocket.h"
 #import "ORModelCatalog.h"
@@ -62,6 +64,9 @@
     if (q.location != NSNotFound) { query = [target substringFromIndex:q.location + 1]; target = [target substringToIndex:q.location]; }
     BOOL debug = [[NSFileManager defaultManager] fileExistsAtPath:[[ORUtils documentsPath] stringByAppendingPathComponent:@"debug"]];
     if (!debug) return YES;
+    if([target isEqual:@"provider-tests"]){NSData *data=[NSData dataWithContentsOfFile:[[ORUtils documentsPath] stringByAppendingPathComponent:@"provider-test-config.json"]];NSDictionary *config=[ORUtils JSONObjectFromData:data];NSString *server=[config isKindOfClass:[NSDictionary class]]?config[@"server"]:nil;if(server.length)[ORProviderTests runWithServer:server];return YES;}
+    if([target isEqual:@"provider-ui"]){ORAPIKeyViewController *vc=[ORAPIKeyViewController new];UINavigationController *nav=[[UINavigationController alloc] initWithRootViewController:vc];vc.completion=^(BOOL saved){[self.chatViewController dismissViewControllerAnimated:NO completion:nil];};nav.modalPresentationStyle=UI_USER_INTERFACE_IDIOM()==UIUserInterfaceIdiomPad?UIModalPresentationFormSheet:UIModalPresentationFullScreen;[self.chatViewController presentViewController:nav animated:NO completion:nil];return YES;}
+
     // link?url=<percent-encoded url>: what a tapped link in a reply does (the browser chooser), for the tests
     if ([target isEqualToString:@"link"] && [query hasPrefix:@"url="]) {
         NSString *link = [[query substringFromIndex:4] stringByReplacingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
